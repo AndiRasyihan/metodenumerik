@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Generator Grafik Metode Numerik (Final Version)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+<style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f8; padding: 20px; color: #333; }
+    .container { max-width: 1000px; margin: 0 auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+    h1 { text-align: center; color: #2c3e50; margin-bottom: 5px; }
+    
+    .inputs { 
+        display: flex; gap: 15px; justify-content: center; align-items: center; 
+        margin: 20px 0; background: #eef2f7; padding: 20px; border-radius: 8px; border: 1px solid #dce1e6;
+    }
+    input { padding: 10px; width: 100px; text-align: center; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
+    
+    button.generate-btn { 
+        padding: 12px 25px; background: #007bff; color: white; border: none; 
+        cursor: pointer; border-radius: 5px; font-weight: bold; font-size: 15px;
+        transition: background 0.2s;
+    }
+    button.generate-btn:hover { background: #0056b3; }
+
+    .chart-container { margin-bottom: 40px; padding: 20px; border: 1px solid #e1e4e8; border-radius: 10px; background: #fff; }
+    
+    /* Header Grafik + Tombol Download */
+    .chart-header {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-bottom: 15px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px;
+    }
+    .chart-header h3 { margin: 0; color: #444; }
+    
+    .download-btn {
+        background: #28a745; color: white; border: none; padding: 8px 15px;
+        border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 600;
+        transition: background 0.2s;
+    }
+    .download-btn:hover { background: #218838; }
+
+    canvas { max-height: 400px; background: #fff; } 
+    .summary { text-align: center; font-size: 0.95em; color: #666; margin-bottom: 10px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Grafik Konvergensi Metode Numerik</h1>
+    <div style="text-align:center; color:#666; margin-bottom:10px;">
+        Fungsi: <code>f(x) = x³ - 2x² + 3x - 5</code>
+    </div>
+
+    <div class="inputs">
+        <div>
+            <label style="font-weight:bold; display:block; font-size:0.9em;">Nilai a</label>
+            <input type="number" id="inpA" value="1.2">
+        </div>
+        <div>
+            <label style="font-weight:bold; display:block; font-size:0.9em;">Nilai b</label>
+            <input type="number" id="inpB" value="2.1">
+        </div>
+        <div style="align-self:end;">
+            <button class="generate-btn" onclick="generateAllGraphs()">GENERATE GRAPH</button>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-header">
+            <h3>1. Metode Biseksi</h3>
+            <button class="download-btn" onclick="downloadChart('chartBis', 'Biseksi_HD.png')">⬇ Download HD</button>
+        </div>
+        <div id="infoBis" class="summary"></div>
+        <canvas id="chartBis"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-header">
+            <h3>2. Metode Regula Falsi</h3>
+            <button class="download-btn" onclick="downloadChart('chartRF', 'RegulaFalsi_HD.png')">⬇ Download HD</button>
+        </div>
+        <div id="infoRF" class="summary"></div>
+        <canvas id="chartRF"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-header">
+            <h3>3. Metode Secant</h3>
+            <button class="download-btn" onclick="downloadChart('chartSec', 'Secant_HD.png')">⬇ Download HD</button>
+        </div>
+        <div id="infoSec" class="summary"></div>
+        <canvas id="chartSec"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-header">
+            <h3>4. Metode Newton-Raphson</h3>
+            <button class="download-btn" onclick="downloadChart('chartNR', 'NewtonRaphson_HD.png')">⬇ Download HD</button>
+        </div>
+        <div style="font-size:0.8em; text-align:center; color:#555;">(Variabel: a = nilai awal, b = nilai baru)</div>
+        <div id="infoNR" class="summary"></div>
+        <canvas id="chartNR"></canvas>
+    </div>
+</div>
+
+<script>
+// Setup Decimal
+Decimal.set({ precision: 20 });
+Chart.defaults.font.family = "'Segoe UI', 'Helvetica', 'Arial', sans-serif";
+
+function f(x) { 
+    let D = new Decimal(x);
+    return D.pow(3).minus(D.pow(2).times(2)).plus(D.times(3)).minus(5);
+}
+function fPrime(x) {
+    let D = new Decimal(x);
+    return D.pow(2).times(3).minus(D.times(4)).plus(3);
+}
+
+let charts = {};
+
+// --- FUNGSI DOWNLOAD HD ---
+function downloadChart(canvasId, filename) {
+    const canvas = document.getElementById(canvasId);
+    if(!charts[canvasId]) {
+        alert("Silakan klik tombol GENERATE terlebih dahulu.");
+        return;
+    }
+    const link = document.createElement('a');
+    link.download = filename;
+    link.href = canvas.toDataURL('image/png', 1.0);
+    link.click();
+}
+
+function generateAllGraphs() {
+    const aVal = parseFloat(document.getElementById('inpA').value);
+    const bVal = parseFloat(document.getElementById('inpB').value);
+    
+    runBiseksi(aVal, bVal);
+    runRegulaFalsi(aVal, bVal);
+    runSecant(aVal, bVal);
+    runNewton(aVal);
+}
+
+// --- LOGIKA RENDER CHART (MODIFIKASI LABEL DINAMIS) ---
+function renderChart(canvasId, label, labels, dataError, dataRoot, dataFc, rootSymbol) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    if (charts[canvasId]) charts[canvasId].destroy();
+
+    // Default symbol 'c' jika tidak ditentukan
+    const sym = rootSymbol || 'c'; 
+    const rootLabel = `Nilai Akar (${sym})`;
+    const axisLabel = `Nilai ${sym.toUpperCase()}`;
+
+    // Plugin Background Putih
+    const whiteBackgroundPlugin = {
+        id: 'custom_canvas_background_color',
+        beforeDraw: (chart) => {
+            const ctx = chart.canvas.getContext('2d');
+            ctx.save();
+            ctx.globalCompositeOperation = 'destination-over';
+            ctx.fillStyle = 'white';
+            ctx.fillRect(0, 0, chart.width, chart.height);
+            ctx.restore();
+        }
+    };
+
+    charts[canvasId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Nilai Error (e)',
+                    data: dataError,
+                    borderColor: 'blue', backgroundColor: 'blue',
+                    yAxisID: 'y_log', borderWidth: 2, pointRadius: 3, fill: false
+                },
+                {
+                    label: rootLabel, // Label Dinamis (c atau b)
+                    data: dataRoot,
+                    borderColor: 'green', backgroundColor: 'green',
+                    yAxisID: 'y_linear', borderWidth: 2, pointRadius: 3, fill: false
+                },
+                {
+                    label: `|f(${sym})|`, // Label Dinamis
+                    data: dataFc,
+                    borderColor: 'red', backgroundColor: 'red',
+                    yAxisID: 'y_log', borderDash: [5, 5], borderWidth: 1, pointRadius: 2, fill: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            interaction: { mode: 'index', intersect: false },
+            scales: {
+                x: { title: { display: true, text: 'Iterasi Ke-' } },
+                y_log: {
+                    type: 'logarithmic', position: 'left',
+                    title: { display: true, text: 'Nilai Error (e)' }, min: 1e-9
+                },
+                y_linear: {
+                    type: 'linear', position: 'right',
+                    title: { display: true, text: axisLabel }, // Sumbu kanan dinamis
+                    grid: { drawOnChartArea: false }
+                }
+            },
+            plugins: { title: { display: true, text: 'Metode: ' + label } }
+        },
+        plugins: [whiteBackgroundPlugin]
+    });
+}
+
+// 1. BISEKSI (Pass 'c')
+function runBiseksi(aIn, bIn) {
+    let a = new Decimal(aIn), b = new Decimal(bIn);
+    let labels = [], errData = [], rootData = [], fcData = [];
+    for(let i=1; i<=30; i++) {
+        let c = a.plus(b).div(2);
+        let fc = f(c);
+        let err = b.minus(a).abs();
+        labels.push(i); errData.push(err.toNumber()); rootData.push(c.toNumber()); fcData.push(fc.abs().toNumber());
+        if(fc.abs().lt(1e-8) || err.lt(1e-8)) break;
+        if(f(a).times(fc).lt(0)) b = c; else a = c;
+    }
+    document.getElementById('infoBis').innerText = `Selesai dalam ${labels.length} iterasi.`;
+    renderChart('chartBis', 'Biseksi', labels, errData, rootData, fcData, 'c');
+}
+
+// 2. REGULA FALSI (Pass 'c')
+function runRegulaFalsi(aIn, bIn) {
+    let a = new Decimal(aIn), b = new Decimal(bIn);
+    let labels = [], errData = [], rootData = [], fcData = [];
+    let fa = f(a), fb = f(b);
+    for(let i=1; i<=30; i++) {
+        let num = fb.times(a.minus(b));
+        let den = fa.minus(fb);
+        let c = b.minus(num.div(den));
+        let fc = f(c);
+        labels.push(i); fcData.push(fc.abs().toNumber()); errData.push(null); rootData.push(c.toNumber());
+        if(fc.abs().lt(1e-8)) break;
+        if(fa.times(fc).lt(0)) { b = c; fb = fc; } else { a = c; fa = fc; }
+    }
+    document.getElementById('infoRF').innerText = `Selesai dalam ${labels.length} iterasi.`;
+    renderChart('chartRF', 'Regula Falsi', labels, fcData, rootData, fcData, 'c');
+}
+
+// 3. SECANT (Pass 'c')
+function runSecant(aIn, bIn) {
+    let x0 = new Decimal(aIn), x1 = new Decimal(bIn);
+    let labels = [], errData = [], rootData = [], fcData = [];
+    for(let i=1; i<=20; i++) {
+        let fx0 = f(x0), fx1 = f(x1);
+        if(fx1.minus(fx0).eq(0)) break;
+        let x2 = x1.minus(fx1.times(x1.minus(x0)).div(fx1.minus(fx0)));
+        labels.push(i); errData.push(x2.minus(x1).abs().toNumber()); rootData.push(x2.toNumber()); fcData.push(f(x2).abs().toNumber());
+        if(f(x2).abs().lt(1e-8)) break;
+        x0 = x1; x1 = x2;
+    }
+    document.getElementById('infoSec').innerText = `Selesai dalam ${labels.length} iterasi.`;
+    renderChart('chartSec', 'Secant', labels, errData, rootData, fcData, 'c');
+}
+
+// 4. NEWTON RAPHSON (Pass 'b')
+function runNewton(aIn) {
+    let x = new Decimal(aIn);
+    let labels = [], errData = [], rootData = [], fcData = [];
+    for(let i=1; i<=20; i++) {
+        let fx = f(x), fpx = fPrime(x);
+        if(fpx.eq(0)) break;
+        let diff = fx.div(fpx);
+        let x_new = x.minus(diff);
+        // x_new disini adalah b
+        labels.push(i); errData.push(diff.abs().toNumber()); rootData.push(x_new.toNumber()); fcData.push(f(x_new).abs().toNumber());
+        if(fx.abs().lt(1e-8)) break;
+        x = x_new;
+    }
+    document.getElementById('infoNR').innerText = `Selesai dalam ${labels.length} iterasi.`;
+    
+    // Pass 'b' sebagai simbol
+    renderChart('chartNR', 'Newton Raphson', labels, errData, rootData, fcData, 'b');
+}
+
+window.onload = generateAllGraphs;
+</script>
+
+</body>
+</html>

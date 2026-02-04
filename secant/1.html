@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kalkulator Metode Secant — Fix Presisi</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+  body{ font-family: Arial, sans-serif; max-width: 1100px; margin:20px auto; background:#f5f7fb; padding:18px; color:#111; }
+  .container{ background:#fff; padding:18px; border-radius:10px; box-shadow:0 6px 20px rgba(9,30,66,0.08); }
+  h1{ text-align:center; margin-bottom:6px; }
+  .display-sample{ font-family: "Courier New", monospace; text-align:center; background:#222; color:#ff9800; padding:8px; border-radius:6px; display:inline-block; margin-bottom:12px; }
+  .inputs { display:flex; gap:12px; align-items:end; margin:12px 0 20px 0; flex-wrap:wrap; }
+  .inputs label{ display:block; font-weight:600; margin-bottom:6px; }
+  input[type=number], select { padding:8px; border:1px solid #d7dbe0; border-radius:6px; width:180px; }
+  button { background:#007bff; color:#fff; padding:9px 16px; border:0; border-radius:6px; cursor:pointer; font-weight:700; }
+  button:hover{ background:#0056b3; }
+  .error{ color:#b00020; margin-top:8px; }
+  #hasilArea{ margin-top:18px; }
+  .iterasi-box{ background:#fbfcfe; border-left:4px solid #ff9800; padding:14px 16px; margin-bottom:12px; border-radius:8px; white-space:pre-line; font-family: "Courier New", monospace; font-size:14px; color:#0b1220; }
+  .converged{ background:#ecfdf5; border:1px solid #bbf7d0; padding:12px; border-radius:8px; font-weight:700; text-align:center; margin-top:8px; }
+  #downloadExcelBtn { background:#16a34a; margin-left:10px; }
+  #downloadPdfBtn { background:#b00020; margin-left:10px; }
+</style>
+</head>
+<body>
+<div class="container" id="contentToPrint">
+  <h1>Kalkulator Metode Secant — Presisi Diperbaiki</h1>
+  <div class="display-sample">Persamaan: $f(x) = x^3 - 2x^2 + 3x - 5$</div>
+
+  <div class="inputs">
+    <div style="display:flex; flex-direction:column">
+      <label>Nilai a (x₀)</label>
+      <input id="aInput" type="number" step="any" value="1.2" />
+    </div>
+    <div style="display:flex; flex-direction:column">
+      <label>Nilai b (x₁)</label>
+      <input id="bInput" type="number" step="any" value="2.1" />
+    </div>
+    <div style="display:flex; flex-direction:column">
+      <label>Mode Pembulatan</label>
+      <select id="roundMode">
+        <option value="ROUND_HALF_UP" selected>ROUND_HALF_UP</option>
+        <option value="ROUND_HALF_EVEN">ROUND_HALF_EVEN</option>
+        <option value="ROUND_HALF_DOWN">ROUND_HALF_DOWN</option>
+      </select>
+    </div>
+    <div style="align-self:center">
+      <button onclick="hitungSecant()">Hitung</button>
+      <button id="downloadExcelBtn" onclick="downloadExcel()">Excel</button>
+      <button id="downloadPdfBtn" onclick="downloadPDF()">PDF</button>
+    </div>
+  </div>
+  <div id="error" class="error"></div>
+  <div id="hasilArea" style="display:none"></div>
+</div>
+
+<script>
+let dataExcel = [];
+
+const ROUND_MAP = {
+  'ROUND_HALF_UP': Decimal.ROUND_HALF_UP,
+  'ROUND_HALF_EVEN': Decimal.ROUND_HALF_EVEN,
+  'ROUND_HALF_DOWN': Decimal.ROUND_HALF_DOWN
+};
+
+function setDecimalConfig(roundKey){
+  Decimal.set({ precision: 60, rounding: ROUND_MAP[roundKey] });
+}
+
+function fDec(x){ 
+  return x.pow(3).minus(x.pow(2).times(2)).plus(x.times(3)).minus(5); 
+}
+
+function roundFixed(dec, places){
+  if(!dec.isFinite()) return dec;
+  return new Decimal(dec.toFixed(places));
+}
+
+function toDisplay(dec, places=9){
+  const D = new Decimal(dec);
+  let s = D.toFixed(places);
+  s = s.replace(/\.?0+$/, ''); 
+  if(s === '' || s === '-0') s = '0';
+  return s;
+}
+
+function hitungSecant(){
+  const errEl = document.getElementById('error'); errEl.textContent = '';
+  const hasilArea = document.getElementById('hasilArea');
+  hasilArea.innerHTML = '';
+  hasilArea.style.display = 'none';
+
+  const aVal = document.getElementById('aInput').value;
+  const bVal = document.getElementById('bInput').value;
+  const roundKey = document.getElementById('roundMode').value;
+  const fixedDecimals = 9; 
+  const tol = new Decimal('1e-8'); 
+
+  setDecimalConfig(roundKey);
+
+  if(String(aVal).trim()==='' || String(bVal).trim()===''){
+    errEl.textContent = 'Masukkan nilai a dan b.'; return;
+  }
+
+  let A, B, fa, fb;
+  try { A = new Decimal(aVal); B = new Decimal(bVal); }
+  catch(e){ errEl.textContent = 'Format angka tidak valid.'; return; }
+  
+  fa = roundFixed(fDec(A), fixedDecimals);
+  fb = roundFixed(fDec(B), fixedDecimals);
+
+  dataExcel = [["Iterasi", "a", "f(a)", "b", "f(b)", "c", "f(c)", "|f(c)|", "Update"]];
+  hasilArea.style.display = 'block';
+
+  for(let i=1; i<=100; i++){
+    const b_minus_a = B.minus(A); 
+    const fb_minus_fa = fb.minus(fa); 
+
+    if(fb_minus_fa.isZero()){
+       hasilArea.innerHTML += `<div class="error">Error: Pembagian dengan nol pada iterasi ${i}.</div>`; break;
+    }
+
+    // --- PERBAIKAN LOGIKA DISINI ---
+    // 1. Hitung Numerator MENTAH (High Precision)
+    const numerator_raw = fb.times(b_minus_a);
+    const numerator_display = roundFixed(numerator_raw, fixedDecimals); // Hanya untuk display
+
+    // 2. Bagi Numerator MENTAH dengan Denominator (Agar presisi terjaga)
+    const term_frac_raw = numerator_raw.dividedBy(fb_minus_fa);
+    const term_frac_display = roundFixed(term_frac_raw, fixedDecimals); // Hanya untuk display
+
+    // 3. Kurangkan (Gunakan yang sudah dibulatkan agar konsisten dengan 'manual paper')
+    // Sesuai gambar kanan (Old), C dihitung dari pengurangan nilai bulat
+    const C = roundFixed(B.minus(term_frac_display), fixedDecimals);
+    
+    // --- Hitung f(c) Total ---
+    let total_c = roundFixed(fDec(C), fixedDecimals);
+    const absFc = total_c.abs();
+
+    // --- Komponen Pecahan untuk Tampilan ---
+    const comp_pow3 = roundFixed(C.pow(3), fixedDecimals);           
+    const comp_pow2_x2 = roundFixed(C.pow(2).times(2), fixedDecimals); 
+    const comp_x3 = roundFixed(C.times(3), fixedDecimals);             
+
+    // String Display
+    const sA = toDisplay(A); const sB = toDisplay(B); const sC = toDisplay(C);
+    const sFa = toDisplay(fa); const sFb = toDisplay(fb); const sFc = toDisplay(total_c);
+    const sAbsFc = toDisplay(absFc);
+
+    // Tampilan Rumus C
+    const cLine1 = `c = ${sB} - [ ${sFb} * (${sB} - ${sA}) ] / [ ${sFb} - ${sFa} ]`;
+    const cLine2 = `  = ${sB} - [ ${toDisplay(numerator_display)} / ${toDisplay(fb_minus_fa)} ]`;
+    const cLine3 = `  = ${sB} - ${toDisplay(term_frac_display)}`;
+    
+    // Tampilan Perincian f(c)
+    const fcCalcLine = `= ${toDisplay(comp_pow3)} - ${toDisplay(comp_pow2_x2)} + ${toDisplay(comp_x3)} - 5`;
+
+    const iterText =
+`Iterasi ke-${i}
+a = ${sA}, b = ${sB}
+f(a) = ${sFa}, f(b) = ${sFb}
+
+Rumus c:
+${cLine1}
+${cLine2}
+${cLine3}
+c = ${sC}
+
+Hitung f(c):
+f(c) = (${sC})³ - 2(${sC})² + 3(${sC}) - 5
+     ${fcCalcLine}
+     = ${sFc}
+
+Cek Konvergensi:
+|f(c)| = ${sAbsFc} ${absFc.lte(tol) ? '≤' : '>'} 10⁻⁸
+
+${absFc.lte(tol) ? 'TARGET TERCAPAI' : `Karena belum, maka: a = b (${sB}) dan b = c (${sC})`}
+---------------------------------`;
+
+    const div = document.createElement('div');
+    div.className = 'iterasi-box';
+    div.textContent = iterText;
+    hasilArea.appendChild(div);
+
+    dataExcel.push([ i, sA, sFa, sB, sFb, sC, sFc, sAbsFc, absFc.lte(tol) ? "Selesai" : "a=b, b=c" ]);
+
+    if(absFc.lte(tol)){
+      const endDiv = document.createElement('div');
+      endDiv.className = 'converged';
+      endDiv.textContent = `SELESAI — Akar ≈ ${sC} pada iterasi ke-${i}.`;
+      hasilArea.appendChild(endDiv);
+      dataExcel.push(["SELESAI", "", "", "", "", sC, "", sAbsFc, `iterasi ${i}`]);
+      break;
+    }
+
+    A = B; B = C; fa = fb; fb = total_c;
+  }
+}
+
+function downloadExcel() {
+  if (!dataExcel || dataExcel.length <= 1) { alert("Hitung dulu."); return; }
+  const ws = XLSX.utils.aoa_to_sheet(dataExcel);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Metode Secant");
+  XLSX.writeFile(wb, "hasil_secant_fix.xlsx");
+}
+
+function downloadPDF() {
+  if (document.getElementById('hasilArea').style.display === 'none' || dataExcel.length <= 1) {
+    alert("Silakan hitung terlebih dahulu sebelum mendownload PDF.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  const hasilArea = document.getElementById('hasilArea');
+  const items = hasilArea.querySelectorAll('.iterasi-box, .converged');
+
+  let y = 10;
+  const pageHeight = 297;
+  const margin = 10;
+  const contentWidth = 190;
+
+  let isFirstPage = true;
+
+  // Render setiap ITERASI sebagai gambar terpisah
+  const renderNext = (index) => {
+    if (index >= items.length) {
+      doc.save("hasil_secant.pdf");
+      return;
+    }
+
+    html2canvas(items[index], { scale: 1 }).then((canvas) => {
+      const imgData = canvas.toDataURL("image/jpeg", 0.5); // JPEG = jauh lebih kecil
+      const imgWidth = contentWidth;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+
+      if (y + imgHeight > pageHeight - margin) {
+        doc.addPage();
+        y = 10;
+      }
+
+      doc.addImage(imgData, 'JPEG', margin, y, imgWidth, imgHeight);
+      y += imgHeight + 8;
+
+      renderNext(index + 1);
+    });
+  };
+
+  renderNext(0);
+}
+
+</script>
+</body>
+</html>

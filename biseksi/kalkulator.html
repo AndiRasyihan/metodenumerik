@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Metode Biseksi - Format Langkah Lengkap</title>
+  <style>
+    body {
+      font-family: "Cambria Math", serif;
+      background: #f9fafb;
+      padding: 30px;
+      color: #111;
+      line-height: 1.7;
+    }
+    h1 {
+      text-align: center;
+      color: #222;
+      margin-bottom: 30px;
+    }
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    label {
+      display: inline-block;
+      width: 140px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    input {
+      width: 120px;
+      padding: 6px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      margin-right: 10px;
+    }
+    button {
+      padding: 8px 18px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1e40af;
+    }
+    .hasil-iterasi {
+      background: #f3f4f6;
+      border-left: 4px solid #2563eb;
+      padding: 15px 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      white-space: pre-line;
+      font-family: "Cambria Math", serif;
+    }
+  </style>
+</head>
+<body>
+  <h1>Metode Biseksi</h1>
+  <div class="container">
+    <div>
+      <label>Nilai a:</label><input type="number" id="a" value="1.8" step="any" />
+      <label>Nilai b:</label><input type="number" id="b" value="2.0" step="any" />
+      <button onclick="hitungBiseksi()">Hitung</button>
+    </div>
+    <hr />
+    <div id="hasilArea"></div>
+  </div>
+
+  <script>
+    // Fungsi yang akan digunakan dalam perhitungan
+    function f(x) {
+      return Math.pow(x, 3) - 2 * Math.pow(x, 2) + 3 * x - 5;
+    }
+
+    function hitungBiseksi() {
+      const hasilArea = document.getElementById("hasilArea");
+      hasilArea.innerHTML = "";
+
+      let a = parseFloat(document.getElementById("a").value);
+      let b = parseFloat(document.getElementById("b").value);
+      const tolerance = 1e-8;
+      let iterasi = 1;
+
+      while (Math.abs(a - b) > tolerance) {
+        const c = (a + b) / 2;
+        const fa = f(a);
+        const fb = f(b);
+        const fc = f(c);
+
+        // Hitung tiap komponen untuk f(c)
+        const c3 = Math.pow(c, 3);
+        const c2 = Math.pow(c, 2);
+        const langkah1 = `f(c) = (${c.toFixed(6)})³ - 2(${c.toFixed(6)})² + 3(${c.toFixed(6)}) - 5`;
+        const langkah2 = `     = ${c3.toFixed(6)} - ${ (2*c2).toFixed(6) } + ${ (3*c).toFixed(6) } - 5`;
+        const langkah3 = `     = ${fc.toFixed(6)}`;
+
+        // Tentukan tanda dan batas baru
+        const kali = fa * fc;
+        const kondisi = kali < 0 ? "f(a) * f(c) < 0 → b = c" : "f(a) * f(c) > 0 → a = c";
+
+        const iterasiTeks = 
+`Iterasi ke-${iterasi}
+|a - b| = |${a.toFixed(6)} - ${b.toFixed(6)}| = ${(Math.abs(a - b)).toExponential(3)} > 10⁻⁸
+c = (${a.toFixed(6)} + ${b.toFixed(6)}) / 2 = ${c.toFixed(6)}
+
+${langkah1}
+${langkah2}
+${langkah3}
+
+f(a) * f(c) = (${fa.toFixed(6)}) * (${fc.toFixed(6)}) = ${kali.toFixed(6)}
+Karena ${kondisi}
+---------------------------------`;
+
+        const div = document.createElement("div");
+        div.className = "hasil-iterasi";
+        div.textContent = iterasiTeks;
+        hasilArea.appendChild(div);
+
+        if (kali < 0) {
+          b = c;
+        } else {
+          a = c;
+        }
+
+        iterasi++;
+        if (iterasi > 1000) break; // batas keamanan loop
+      }
+    }
+  </script>
+</body>
+</html>

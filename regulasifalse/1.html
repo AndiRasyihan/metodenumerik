@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kalkulator Metode Regula Falsi — PDF & Excel Export</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+  body{
+    font-family: Arial, Helvetica, sans-serif;
+    max-width: 1100px;
+    margin:20px auto;
+    background:#f5f7fb;
+    padding:18px;
+    color:#111;
+  }
+  .container{
+    background:#fff;
+    padding:18px;
+    border-radius:10px;
+    box-shadow:0 6px 20px rgba(9,30,66,0.08);
+  }
+  h1{ text-align:center; margin-bottom:6px; }
+  .display-sample{
+    font-family: "Courier New", monospace;
+    text-align:center;
+    background:#222;
+    color:#0f0;
+    padding:8px;
+    border-radius:6px;
+    display:inline-block;
+    margin-bottom:12px;
+  }
+  .inputs {
+    display:flex;
+    gap:12px;
+    align-items:end;
+    margin:12px 0 20px 0;
+    flex-wrap:wrap;
+  }
+  .inputs label{ display:block; font-weight:600; margin-bottom:6px; }
+  .field {
+    display:flex;
+    flex-direction:column;
+  }
+  input[type=number], select {
+    padding:8px;
+    border:1px solid #d7dbe0;
+    border-radius:6px;
+    width:180px;
+  }
+  button {
+    background:#007bff;
+    color:#fff;
+    padding:9px 16px;
+    border:0;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:700;
+  }
+  button:hover{ background:#0056b3; }
+  .error{ color:#b00020; margin-top:8px; }
+
+  #hasilArea{ margin-top:18px; }
+  .iterasi-box{
+    background:#fbfcfe;
+    border-left:4px solid #1e3a8a;
+    padding:14px 16px;
+    margin-bottom:12px;
+    border-radius:8px;
+    white-space:pre-line;
+    font-family: "Courier New", monospace;
+    font-size:14px;
+    color:#0b1220;
+  }
+  .converged{
+    background:#ecfdf5;
+    border:1px solid #bbf7d0;
+    padding:12px;
+    border-radius:8px;
+    font-weight:700;
+    text-align:center;
+    margin-top:8px;
+  }
+
+  @media (max-width:700px){
+    input[type=number], select{ width:140px; }
+  }
+
+  #downloadExcelBtn {
+    background:#16a34a;
+    margin-left:10px;
+  }
+  #downloadPdfBtn {
+    background:#b00020; /* Warna merah untuk PDF */
+    margin-left:10px;
+  }
+</style>
+</head>
+<body>
+<div class="container" id="contentToPrint">
+  <h1>Kalkulator Metode Regula Falsi — Presisi 9 Desimal</h1>
+  <div class="display-sample">Persamaan: $f(x) = x^3 - 2x^2 + 3x - 5$ | Presisi Tetap: 9 Angka di Belakang Koma</div>
+
+  <div class="inputs">
+    <div class="field">
+      <label for="aInput">Nilai a</label>
+      <input id="aInput" type="number" step="any" value="1.2" />
+    </div>
+    <div class="field">
+      <label for="bInput">Nilai b</label>
+      <input id="bInput" type="number" step="any" value="2.1" />
+    </div>
+    <div class="field">
+      <label for="roundMode">Mode pembulatan</label>
+      <select id="roundMode">
+        <option value="ROUND_HALF_UP" selected>ROUND_HALF_UP</option>
+        <option value="ROUND_HALF_EVEN">ROUND_HALF_EVEN</option>
+        <option value="ROUND_HALF_DOWN">ROUND_HALF_DOWN</option>
+      </select>
+    </div>
+    <div style="align-self:center">
+      <button onclick="hitungRegulaFalsi()">Hitung</button>
+      <button id="downloadExcelBtn" onclick="downloadExcel()">Download Excel</button>
+      <button id="downloadPdfBtn" onclick="downloadPDF()">Download PDF</button>
+    </div>
+  </div>
+
+  <div id="error" class="error"></div>
+  <div id="hasilArea" style="display:none"></div>
+</div>
+
+<script>
+/* ---------------------------------------------
+    DATA EXCEL: akan diisi saat hitungRegulaFalsi dijalankan
+   --------------------------------------------- */
+let dataExcel = [];
+
+/* ---------------------------------------------
+    FUNGSI PEMBANTU (DECIMAL.JS & FORMATTING)
+   --------------------------------------------- */
+const ROUND_MAP = {
+  'ROUND_HALF_UP': Decimal.ROUND_HALF_UP,
+  'ROUND_HALF_EVEN': Decimal.ROUND_HALF_EVEN,
+  'ROUND_HALF_DOWN': Decimal.ROUND_HALF_DOWN
+};
+
+function setDecimalConfig(roundKey){
+  Decimal.set({ precision: 60, rounding: ROUND_MAP[roundKey] });
+}
+
+// Fungsi: f(x) = x³ - 2x² + 3x - 5
+function fDec(x){ 
+  return x.pow(3).minus(x.pow(2).times(2)).plus(x.times(3)).minus(5); 
+}
+
+function roundFixed(dec, places){
+  if(!dec.isFinite()) return dec;
+  return new Decimal(dec.toFixed(places));
+}
+
+function toDisplay(dec, places=9){
+  const D = new Decimal(dec);
+  let s = D.toFixed(places);
+  s = s.replace(/\.?0+$/, '');
+  if(s === '' || s === '-0') s = '0';
+  return s;
+}
+
+function toDisplayNoExp(dec, places=9){
+  return toDisplay(dec, places);
+}
+
+
+/* ---------------------------------------------
+    ALGORITMA UTAMA: METODE REGULA FALSI
+   --------------------------------------------- */
+function hitungRegulaFalsi(){
+  const errEl = document.getElementById('error'); errEl.textContent = '';
+  const hasilArea = document.getElementById('hasilArea');
+  hasilArea.innerHTML = '';
+  hasilArea.style.display = 'none';
+
+  const aVal = document.getElementById('aInput').value;
+  const bVal = document.getElementById('bInput').value;
+  const roundKey = document.getElementById('roundMode').value;
+
+  const fixedDecimals = 9; 
+  const tolPlaces = 8;
+  const tol = new Decimal('1e-' + tolPlaces); // |f(c)| <= 10^-8
+
+  setDecimalConfig(roundKey);
+
+  if(String(aVal).trim()==='' || String(bVal).trim()===''){
+    errEl.textContent = 'Masukkan nilai a dan b.';
+    return;
+  }
+
+  let A, B, fa, fb;
+  try { 
+      A = new Decimal(aVal); 
+      B = new Decimal(bVal); 
+  }
+  catch(e){ errEl.textContent = 'Format angka tidak valid.'; return; }
+  
+  fa = roundFixed(fDec(A), fixedDecimals);
+  fb = roundFixed(fDec(B), fixedDecimals);
+
+  if(fa.times(fb).gt(0)){
+    errEl.textContent = `f(${toDisplay(A)}) = ${toDisplay(fa)} dan f(${toDisplay(B)}) = ${toDisplay(fb)} harus berlawanan tanda.`;
+    return;
+  }
+
+  // Inisialisasi data Excel
+  dataExcel = [];
+  dataExcel.push(["Iterasi", "a", "f(a)", "b", "f(b)", "c", "f(c)", "|f(c)|", "Keputusan"]);
+
+  hasilArea.style.display = 'block';
+
+  for(let i=1; i<=2000; i++){
+    
+    // --- RUMUS YANG DIPERBARUI ---
+    // c = b - [ f(b) * (a - b) ] / [ f(a) - f(b) ]
+    
+    // 1. Hitung (a - b)
+    const a_minus_b = A.minus(B); 
+    
+    // 2. Hitung penyebut: f(a) - f(b)
+    const fa_minus_fb = fa.minus(fb); 
+    
+    // 3. Hitung pembilang: f(b) * (a - b)
+    const numerator_raw = fb.times(a_minus_b);
+    const numerator = roundFixed(numerator_raw, fixedDecimals); 
+    
+    // 4. Hitung pecahan
+    const term_frac_raw = numerator_raw.dividedBy(fa_minus_fb);
+    const term_frac = roundFixed(term_frac_raw, fixedDecimals); 
+    
+    const C = roundFixed(B.minus(term_frac), fixedDecimals);
+    
+    // Hitung f(c)
+    const c_cube = roundFixed(C.pow(3), fixedDecimals);
+    const c_square = roundFixed(C.pow(2).times(2), fixedDecimals);
+    const c_linear = C.times(3);
+    let total_c = roundFixed(c_cube.minus(c_square).plus(c_linear).minus(5), fixedDecimals);
+    const absFc = total_c.abs();
+
+    // Konversi ke string tampilan
+    const sA = toDisplay(A, fixedDecimals);
+    const sB = toDisplay(B, fixedDecimals);
+    const sC = toDisplay(C, fixedDecimals);
+    const sFa = toDisplay(fa, fixedDecimals);
+    const sFb = toDisplay(fb, fixedDecimals);
+    const sFc = toDisplay(total_c, fixedDecimals);
+    const sAbsFc = toDisplayNoExp(absFc, fixedDecimals);
+    
+    // Tentukan Keputusan
+    let kondisi = '';
+    let nextA = A; let nextB = B;
+    let nextFa = fa; let nextFb = fb;
+    let product_raw = fa.times(total_c);
+
+    if(product_raw.lt(0)){
+      kondisi = `f(a) * f(c) < 0 → b = c, f(b) = f(c)`;
+      nextB = C; nextFb = total_c;
+    } else {
+      kondisi = `f(a) * f(c) > 0 → a = c, f(a) = f(c)`;
+      nextA = C; nextFa = total_c;
+    }
+
+    // --- Format Tampilan Iterasi (Disesuaikan) ---
+    const sNum = toDisplay(numerator, fixedDecimals);
+    const sDen = toDisplay(fa_minus_fb, fixedDecimals);
+    const sTermFrac = toDisplay(term_frac, fixedDecimals);
+    const sProduct = toDisplay(roundFixed(product_raw, fixedDecimals), fixedDecimals);
+
+    // Update string agar sesuai rumus: c = b - [ f(b) * (a - b) ] / [ f(a) - f(b) ]
+    const cLine1 = `c = ${sB} - [ ${sFb} * (${sA} - ${sB}) ] / [ ${sFa} - ${sFb} ]`;
+    const cLine2 = `  = ${sB} - [ ${sNum} ] / [ ${sDen} ]`;
+    const cLine3 = `  = ${sB} - ${sTermFrac} = ${sC}`;
+    const c_sq_term = roundFixed(C.pow(2).times(2), fixedDecimals);
+
+    const iterText =
+`Iterasi ke-${i}
+Interval: [a=${sA}, b=${sB}]
+f(a)=${sFa} | f(b)=${sFb}
+
+Rumus c:
+${cLine1}
+${cLine2}
+${cLine3}
+
+Hitung f(c):
+f(c) = (${sC})³ - 2(${sC})² + 3(${sC}) - 5
+     = ${toDisplay(c_cube)} - ${toDisplay(c_sq_term)} + ${toDisplay(c_linear)} - 5
+     = ${sFc}
+
+Pengecekan Tanda:
+f(a) * f(c) = (${sFa}) * (${sFc}) = ${sProduct}
+Karena ${kondisi}
+
+Pengecekan Konvergensi:
+|f(c)| = ${sAbsFc} ${absFc.lte(tol) ? `≤ 10⁻${tolPlaces} (Target Tercapai)` : `> 10⁻${tolPlaces} (Lanjut Iterasi)`}
+---------------------------------`;
+
+    const div = document.createElement('div');
+    div.className = 'iterasi-box';
+    div.textContent = iterText;
+    hasilArea.appendChild(div);
+
+    // --- Simpan Data Excel ---
+    dataExcel.push([
+      i, sA, sFa, sB, sFb, sC, sFc, sAbsFc, kondisi
+    ]);
+
+    // --- Cek Konvergensi ---
+    if(absFc.lte(tol)){
+      const endDiv = document.createElement('div');
+      endDiv.className = 'converged';
+      const approxRoot = toDisplay(C, fixedDecimals);
+      endDiv.textContent = `KONVERGENSI — Akar ≈ ${approxRoot} (dicapai pada iterasi ${i}) karena |f(c)| ≤ ${toDisplay(tol, fixedDecimals)}`;
+      hasilArea.appendChild(endDiv);
+      dataExcel.push(["KONVERGENSI", "", "", "", "", approxRoot, "", sAbsFc, `iterasi ${i}`]);
+      break;
+    }
+
+    // --- Perbarui Interval ---
+    A = nextA; 
+    B = nextB;
+    fa = nextFa;
+    fb = nextFb;
+  }
+}
+
+/* ---------------- EXCEL EXPORT ---------------- */
+function downloadExcel() {
+  if (!dataExcel || dataExcel.length <= 1) {
+    alert("Silakan hitung terlebih dahulu sebelum mendownload Excel.");
+    return;
+  }
+  const ws = XLSX.utils.aoa_to_sheet(dataExcel);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Regula Falsi");
+
+  const wscols = [
+    { wpx: 60 }, { wpx: 110 }, { wpx: 120 }, { wpx: 110 }, 
+    { wpx: 120 }, { wpx: 110 }, { wpx: 120 }, { wpx: 100 }, 
+    { wpx: 220 }
+  ];
+  ws['!cols'] = wscols;
+
+  XLSX.writeFile(wb, "hasil_regulafalsi.xlsx");
+}
+
+/* ---------------- PDF EXPORT ---------------- */
+function downloadPDF() {
+  if (document.getElementById('hasilArea').style.display === 'none' || dataExcel.length <= 1) {
+    alert("Silakan hitung terlebih dahulu sebelum mendownload PDF.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  const hasilArea = document.getElementById('hasilArea');
+  const items = hasilArea.querySelectorAll('.iterasi-box, .converged');
+
+  let y = 10;
+  const pageHeight = 297;
+  const margin = 10;
+  const contentWidth = 190;
+
+  let isFirstPage = true;
+
+  // Render setiap ITERASI sebagai gambar terpisah
+  const renderNext = (index) => {
+    if (index >= items.length) {
+      doc.save("hasil_regulafalsi_iterasi.pdf");
+      return;
+    }
+
+    html2canvas(items[index], { scale: 1 }).then((canvas) => {
+      const imgData = canvas.toDataURL("image/jpeg", 0.5); // JPEG = jauh lebih kecil
+      const imgWidth = contentWidth;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+
+      if (y + imgHeight > pageHeight - margin) {
+        doc.addPage();
+        y = 10;
+      }
+
+      doc.addImage(imgData, 'JPEG', margin, y, imgWidth, imgHeight);
+      y += imgHeight + 8;
+
+      renderNext(index + 1);
+    });
+  };
+
+  renderNext(0);
+}
+
+</script>
+</body>
+</html>

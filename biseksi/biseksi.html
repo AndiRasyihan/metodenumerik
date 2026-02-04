@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kalkulator Biseksi (Strict Rounding)</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+
+<style>
+  body{
+    font-family: Arial, Helvetica, sans-serif;
+    max-width: 1100px;
+    margin:20px auto;
+    background:#f5f7fb;
+    padding:18px;
+    color:#111;
+  }
+  .container{
+    background:#fff;
+    padding:18px;
+    border-radius:10px;
+    box-shadow:0 6px 20px rgba(9,30,66,0.08);
+  }
+  h1{ text-align:center; margin-bottom:6px; }
+  .display-sample{
+    font-family: "Courier New", monospace;
+    text-align:center;
+    background:#222;
+    color:#ff9800; /* Warna orange agar senada */
+    padding:8px;
+    border-radius:6px;
+    display:inline-block;
+    margin-bottom:12px;
+  }
+  .inputs {
+    display:flex;
+    gap:12px;
+    align-items:end;
+    margin:12px 0 20px 0;
+    flex-wrap:wrap;
+  }
+  .inputs label{ display:block; font-weight:600; margin-bottom:6px; }
+  .field { display:flex; flex-direction:column; }
+  input[type=number], select {
+    padding:8px;
+    border:1px solid #d7dbe0;
+    border-radius:6px;
+    width:180px;
+  }
+  button {
+    background:#007bff;
+    color:#fff;
+    padding:9px 16px;
+    border:0;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:700;
+  }
+  button:hover{ background:#0056b3; }
+  .error{ color:#b00020; margin-top:8px; }
+
+  #hasilArea{ margin-top:18px; }
+  .iterasi-box{
+    background:#fbfcfe;
+    border-left:4px solid #1e3a8a;
+    padding:14px 16px;
+    margin-bottom:12px;
+    border-radius:8px;
+    white-space:pre-line;
+    font-family: "Courier New", monospace;
+    font-size:14px;
+    color:#0b1220;
+  }
+  .converged{
+    background:#ecfdf5;
+    border:1px solid #bbf7d0;
+    padding:12px;
+    border-radius:8px;
+    font-weight:700;
+    text-align:center;
+    margin-top:8px;
+  }
+
+  @media (max-width:700px){
+    input[type=number], select{ width:140px; }
+  }
+
+  #downloadBtn { background:#16a34a; margin-left:10px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Kalkulator Metode Biseksi (Strict Visual Calculation)</h1>
+  <div class="display-sample">Persamaan: $f(x) = x^3 - 2x^2 + 3x - 5$</div>
+
+  <div class="inputs">
+    <div class="field">
+      <label for="aInput">Nilai a</label>
+      <input id="aInput" type="number" step="any" value="-2" />
+    </div>
+    <div class="field">
+      <label for="bInput">Nilai b</label>
+      <input id="bInput" type="number" step="any" value="2" />
+    </div>
+    <div class="field">
+      <label for="roundMode">Mode pembulatan</label>
+      <select id="roundMode">
+        <option value="ROUND_HALF_UP" selected>ROUND_HALF_UP</option>
+        <option value="ROUND_HALF_EVEN">ROUND_HALF_EVEN</option>
+        <option value="ROUND_HALF_DOWN">ROUND_HALF_DOWN</option>
+      </select>
+    </div>
+    <div style="align-self:center">
+      <button onclick="hitungBiseksi()">Hitung</button>
+      <button id="downloadBtn" onclick="downloadExcel()">Download Excel</button>
+      <button style="background:#9333ea; margin-left:10px" onclick="downloadPDF_Light()">Download PDF</button>
+
+    </div>
+  </div>
+
+  <div id="error" class="error"></div>
+  <div id="hasilArea" style="display:none"></div>
+</div>
+
+<script>
+let dataExcel = [];
+
+const ROUND_MAP = {
+  'ROUND_HALF_UP': Decimal.ROUND_HALF_UP,
+  'ROUND_HALF_EVEN': Decimal.ROUND_HALF_EVEN,
+  'ROUND_HALF_DOWN': Decimal.ROUND_HALF_DOWN
+};
+
+function setDecimalConfig(roundKey){
+  Decimal.set({ precision: 60, rounding: ROUND_MAP[roundKey] });
+}
+
+// --- FUNGSI UTAMA: STRICT ROUNDING ---
+// Memaksa angka dibulatkan ke 9 desimal dan membuang sisa desimalnya
+function strictRound(decVal) {
+    if (!decVal.isFinite()) return decVal;
+    return new Decimal(decVal.toFixed(9));
+}
+
+// Menghitung f(x) dengan metode strict per komponen
+function calculateFStrict(valDec) {
+    // f(x) = x^3 - 2x^2 + 3x - 5
+    const term1 = strictRound(valDec.pow(3));             // x^3 dibulatkan
+    const term2 = strictRound(valDec.pow(2).times(2));    // 2x^2 dibulatkan
+    const term3 = strictRound(valDec.times(3));           // 3x dibulatkan
+    
+    // Penjumlahan/pengurangan hasil yang sudah bulat
+    const result = term1.minus(term2).plus(term3).minus(5);
+    
+    return {
+        res: result,      // Hasil akhir (Decimal)
+        t1: term1,        // Komponen x^3
+        t2: term2,        // Komponen 2x^2
+        t3: term3         // Komponen 3x
+    };
+}
+
+function toDisplay(dec){
+  let s = dec.toFixed(9);
+  s = s.replace(/\.?0+$/, '');
+  if(s === '' || s === '-0') s = '0';
+  return s;
+}
+
+function hitungBiseksi(){
+  const errEl = document.getElementById('error'); errEl.textContent = '';
+  const hasilArea = document.getElementById('hasilArea');
+  hasilArea.innerHTML = '';
+  hasilArea.style.display = 'none';
+
+  const aVal = document.getElementById('aInput').value;
+  const bVal = document.getElementById('bInput').value;
+  const roundKey = document.getElementById('roundMode').value;
+
+  const tolPlaces = 8;
+  const tol = new Decimal('1e-' + tolPlaces);
+
+  setDecimalConfig(roundKey);
+
+  if(String(aVal).trim()==='' || String(bVal).trim()===''){
+    errEl.textContent = 'Masukkan nilai a dan b.';
+    return;
+  }
+
+  let A, B;
+  try { A = new Decimal(aVal); B = new Decimal(bVal); }
+  catch(e){ errEl.textContent = 'Format angka tidak valid.'; return; }
+
+  // 1. Bulatkan input awal agar bersih
+  A = strictRound(A);
+  B = strictRound(B);
+
+  // 2. Hitung f(a) dan f(b) awal secara strict
+  let fA_Obj = calculateFStrict(A);
+  let fB_Obj = calculateFStrict(B);
+  
+  // Ambil nilai hasilnya saja
+  let fa = fA_Obj.res;
+  let fb = fB_Obj.res;
+
+  if(fa.times(fb).gt(0)){
+    errEl.textContent = 'Error: f(a) dan f(b) harus berlawanan tanda.';
+    return;
+  }
+
+  dataExcel = [];
+  dataExcel.push(["Iterasi", "a", "b", "c", "f(c)", "|a - b|", "Keputusan"]);
+
+  hasilArea.style.display = 'block';
+
+  for(let i=1; i<=2000; i++){
+    // --- LANGKAH 1: Cari c ---
+    // c = (a + b) / 2 -> Langsung bulatkan
+    const C = strictRound(A.plus(B).dividedBy(2));
+
+    // --- LANGKAH 2: Hitung f(c) Strict ---
+    const fC_Obj = calculateFStrict(C);
+    const fc = fC_Obj.res;
+
+    // --- LANGKAH 3: Hitung Produk f(a)*f(c) Strict ---
+    // Hasil kali juga dibulatkan agar tampilan "clean"
+    const product = strictRound(fa.times(fc));
+
+    // --- Hitung Jarak ---
+    const jarak = A.minus(B).abs(); // Tidak perlu dibulatkan lagi karena A dan B sudah 9 desimal
+
+    // --- Persiapan Tampilan ---
+    const sA = toDisplay(A);
+    const sB = toDisplay(B);
+    const sC = toDisplay(C);
+    const sJarak = toDisplay(jarak);
+    
+    // Komponen f(c)
+    const sCcube = toDisplay(fC_Obj.t1);
+    const sCsquare = toDisplay(fC_Obj.t2);
+    const sClinear = toDisplay(fC_Obj.t3);
+    const sFc = toDisplay(fc);
+    
+    const sFa = toDisplay(fa);
+    const sProduct = toDisplay(product);
+
+    const compTol = jarak.lte(tol) ? `<= 10⁻${tolPlaces}` : `> 10⁻${tolPlaces}`;
+    const jarakLine = `|a - b| = |${sA} - ${sB}| = ${sJarak} ${compTol}`;
+
+    // Tampilan Rumus f(c) sesuai komponen yang sudah dibulatkan
+    const fcline1 = `f(c) = (${sC})³ - 2(${sC})² + 3(${sC}) - 5`;
+    const fcline2 = `      = ${sCcube} - ${sCsquare} + ${sClinear} - 5`;
+    const fcline3 = `      = ${sFc}`;
+
+    const facLine = `f(a) * f(c) = (${sFa}) * (${sFc}) = ${sProduct}`;
+    
+    // Logika Keputusan (gunakan nilai product yang sudah dibulatkan atau raw? 
+    // Untuk konsistensi visual, kita gunakan nilai product. 
+    // NAMUN, hati-hati jika product = 0 karena rounding. 
+    // Tapi karena ini metode numerik tugas kuliah, kita ikut hasil visual).
+    let kondisiText = "";
+    if (product.lt(0)) {
+        kondisiText = `f(a) * f(c) < 0 (<span style="color:green">Negatif</span>) → b = c`;
+    } else {
+        kondisiText = `f(a) * f(c) > 0 (<span style="color:red">Positif</span>) → a = c`;
+    }
+
+    const iterText =
+`Iterasi ke-${i}
+${jarakLine}
+c = (${sA} + ${sB}) / 2 = ${sC}
+
+${fcline1}
+${fcline2}
+${fcline3}
+
+${facLine}
+${kondisiText}
+---------------------------------`;
+
+    const div = document.createElement('div');
+    div.className = 'iterasi-box';
+    div.innerHTML = iterText; // innerHTML karena ada span color
+    hasilArea.appendChild(div);
+
+    // Save to Excel
+    dataExcel.push([
+      i, sA, sB, sC, sFc, sJarak, 
+      product.lt(0) ? "b = c" : "a = c"
+    ]);
+
+    // --- Cek Konvergensi ---
+    if(jarak.lte(tol)){
+      const endDiv = document.createElement('div');
+      endDiv.className = 'converged';
+      endDiv.textContent = `KONVERGENSI — akar ≈ ${sC} (iterasi ${i})`;
+      hasilArea.appendChild(endDiv);
+      dataExcel.push(["KONVERGENSI", "", "", sC, "", sJarak, `iterasi ${i}`]);
+      break;
+    }
+
+    // --- Update Nilai untuk Iterasi Selanjutnya ---
+    // Karena A, B, dan C semuanya sudah strictRound, maka assignment ini aman.
+    if(product.lt(0)){
+      B = C; 
+      fb = fc; // update fb dengan fc yang baru
+    } else {
+      A = C; 
+      fa = fc; // update fa dengan fc yang baru
+    }
+  }
+}
+
+function downloadExcel() {
+  if (!dataExcel || dataExcel.length <= 1) {
+    alert("Silakan hitung terlebih dahulu sebelum mendownload Excel.");
+    return;
+  }
+  const ws = XLSX.utils.aoa_to_sheet(dataExcel);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Biseksi Strict");
+  const wscols = [{ wpx: 60 }, { wpx: 110 }, { wpx: 110 }, { wpx: 110 }, { wpx: 120 }, { wpx: 100 }, { wpx: 180 }];
+  ws['!cols'] = wscols;
+  XLSX.writeFile(wb, "hasil_biseksi_strict.xlsx");
+}
+
+function downloadPDF_Light() {
+    const element = document.getElementById('hasilArea');
+    if (element.style.display === "none" || element.innerHTML.trim() === "") {
+        alert("Silakan hitung terlebih dahulu sebelum mendownload PDF.");
+        return;
+    }
+    const clone = element.cloneNode(true);
+    clone.style.maxWidth = "100%";
+    clone.style.padding = "10px";
+    const opt = {
+        margin:       0.3,
+        filename:     'hasil_biseksi_strict.pdf',
+        image:        { type: 'jpeg', quality: 0.95 },
+        html2canvas:  { scale: 1.5, useCORS: true },
+        jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait', compress: true }
+    };
+    html2pdf().set(opt).from(clone).save();
+}
+</script>
+</body>
+</html>

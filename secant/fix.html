@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kalkulator Secant (Fix Presisi Suku)</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+  body{ font-family: Arial, sans-serif; max-width: 1100px; margin:20px auto; background:#f5f7fb; padding:18px; color:#111; }
+  .container{ background:#fff; padding:18px; border-radius:10px; box-shadow:0 6px 20px rgba(9,30,66,0.08); }
+  h1{ text-align:center; margin-bottom:6px; }
+  .display-sample{ font-family: "Courier New", monospace; text-align:center; background:#222; color:#ff9800; padding:8px; border-radius:6px; display:inline-block; margin-bottom:12px; }
+  .inputs { display:flex; gap:12px; align-items:end; margin:12px 0 20px 0; flex-wrap:wrap; }
+  .inputs label{ display:block; font-weight:600; margin-bottom:6px; }
+  input[type=number], select { padding:8px; border:1px solid #d7dbe0; border-radius:6px; width:180px; }
+  button { background:#007bff; color:#fff; padding:9px 16px; border:0; border-radius:6px; cursor:pointer; font-weight:700; }
+  button:hover{ background:#0056b3; }
+  .error{ color:#b00020; margin-top:8px; }
+  #hasilArea{ margin-top:18px; }
+  .iterasi-box{ background:#fbfcfe; border-left:4px solid #2563eb; padding:14px 16px; margin-bottom:12px; border-radius:8px; white-space:pre-line; font-family: "Courier New", monospace; font-size:14px; color:#0b1220; }
+  .converged{ background:#ecfdf5; border:1px solid #bbf7d0; padding:12px; border-radius:8px; font-weight:700; text-align:center; margin-top:8px; }
+  #downloadExcelBtn { background:#16a34a; margin-left:10px; }
+  #downloadPdfBtn { background:#b00020; margin-left:10px; }
+</style>
+</head>
+<body>
+<div class="container" id="contentToPrint">
+  <h1>Kalkulator Secant (Fix Presisi Suku)</h1>
+  <div class="display-sample">Persamaan: $f(x) = x^3 - 2x^2 + 3x - 5$</div>
+  <p style="text-align:center; font-size:13px; color:#666">
+    *Mode Manual Per Suku: Membulatkan setelah menghitung satu suku penuh (misal: 2x²).*
+  </p>
+
+  <div class="inputs">
+    <div class="field">
+      <label>Nilai a (x₀)</label>
+      <input id="aInput" type="number" step="any" value="-2" />
+    </div>
+    <div class="field">
+      <label>Nilai b (x₁)</label>
+      <input id="bInput" type="number" step="any" value="2" />
+    </div>
+    <div class="field">
+      <label>Mode Pembulatan</label>
+      <select id="roundMode">
+        <option value="ROUND_HALF_UP" selected>ROUND_HALF_UP</option>
+        <option value="ROUND_HALF_EVEN">ROUND_HALF_EVEN</option>
+        <option value="ROUND_HALF_DOWN">ROUND_HALF_DOWN</option>
+      </select>
+    </div>
+    <div style="align-self:center">
+      <button onclick="hitungSecant()">Hitung</button>
+      <button id="downloadExcelBtn" onclick="downloadExcel()">Excel</button>
+      <button id="downloadPdfBtn" onclick="downloadPDF()">PDF</button>
+    </div>
+  </div>
+
+  <div id="error" class="error"></div>
+  <div id="hasilArea" style="display:none"></div>
+</div>
+
+<script>
+let dataExcel = [];
+
+const ROUND_MAP = {
+  'ROUND_HALF_UP': Decimal.ROUND_HALF_UP,
+  'ROUND_HALF_EVEN': Decimal.ROUND_HALF_EVEN,
+  'ROUND_HALF_DOWN': Decimal.ROUND_HALF_DOWN
+};
+
+function setDecimalConfig(roundKey){
+  Decimal.set({ precision: 60, rounding: ROUND_MAP[roundKey] });
+}
+
+function manualRound(dec) {
+    if (!dec.isFinite()) return dec;
+    return new Decimal(dec.toFixed(9));
+}
+
+function formatVal(decVal, smartStr = null) {
+    if(smartStr) return smartStr;
+    let s = decVal.toFixed(9);
+    s = s.replace(/\.?0+$/, '');
+    if(s === '' || s === '-0') s = '0';
+    return s;
+}
+
+// --- PERBAIKAN DI SINI ---
+function calculateF_Manual(valDec) {
+    const x = valDec; 
+    
+    // Suku 1: x^3 (Bulatkan hasil akhir)
+    const term1 = manualRound(x.pow(3));
+
+    // Suku 2: 2x^2
+    // DULU: manualRound(manualRound(x^2) * 2) -> Salah, terlalu cepat dibulatkan
+    // SEKARANG: manualRound(x^2 * 2) -> Hitung total suku dulu, baru bulatkan
+    const term2 = manualRound(x.pow(2).times(2));
+
+    // Suku 3: 3x
+    const term3 = manualRound(x.times(3));
+    
+    // Total: t1 - t2 + t3 - 5
+    let res = manualRound(term1.minus(term2));
+    res = manualRound(res.plus(term3));
+    res = manualRound(res.minus(5));
+
+    return { res, term1, term2, term3 };
+}
+
+function calculateF_Smart(valDec) {
+    const term1 = valDec.pow(3);
+    const term2 = valDec.pow(2).times(2);
+    const term3 = valDec.times(3);
+    const res = term1.minus(term2).plus(term3).minus(5);
+    return { res, term1, term2, term3 };
+}
+
+function hitungSecant(){
+  const errEl = document.getElementById('error'); errEl.textContent = '';
+  const hasilArea = document.getElementById('hasilArea');
+  hasilArea.innerHTML = '';
+  hasilArea.style.display = 'none';
+
+  const aVal = document.getElementById('aInput').value;
+  const bVal = document.getElementById('bInput').value;
+  const roundKey = document.getElementById('roundMode').value;
+  
+  // Ambil nilai toleransi 10^-8
+  const tol = new Decimal('1e-8');
+
+  setDecimalConfig(roundKey);
+
+  if(String(aVal).trim()==='' || String(bVal).trim()===''){
+    errEl.textContent = 'Masukkan nilai a dan b.'; return;
+  }
+
+  let A_raw, B_raw;
+  try { A_raw = new Decimal(aVal); B_raw = new Decimal(bVal); }
+  catch(e){ errEl.textContent = 'Format angka tidak valid.'; return; }
+
+  dataExcel = [["Iterasi", "a", "f(a)", "b", "f(b)", "c", "f(c)", "|f(c)|", "Mode"]];
+  hasilArea.style.display = 'block';
+
+  for(let i=1; i<=100; i++){
+    
+    const A_round = manualRound(A_raw);
+    const B_round = manualRound(B_raw);
+
+    const fA_Obj = calculateF_Manual(A_round);
+    const fB_Obj = calculateF_Manual(B_round);
+    let fa = fA_Obj.res;
+    let fb = fB_Obj.res;
+
+    let diff_fb_fa = manualRound(fb.minus(fa));
+    let diff_b_a = manualRound(B_round.minus(A_round));
+    
+    let denom_is_smart = false;
+    let smart_denom_val = null;
+    let smart_diff_ba_val = null;
+
+    if(diff_fb_fa.isZero() || diff_b_a.isZero()){
+        const fA_smart = calculateF_Smart(A_raw);
+        const fB_smart = calculateF_Smart(B_raw);
+        const diff_f_smart = fB_smart.res.minus(fA_smart.res);
+        const diff_ba_smart = B_raw.minus(A_raw);
+
+        if(diff_f_smart.isZero()){
+           hasilArea.innerHTML += `<div class="error">STOP: Penyebut benar-benar nol (Stagnan Total).</div>`; break;
+        }
+
+        diff_fb_fa = diff_f_smart; 
+        diff_b_a = diff_ba_smart;
+        denom_is_smart = true;
+        smart_denom_val = diff_f_smart.toExponential(3); 
+        smart_diff_ba_val = diff_ba_smart.toExponential(3);
+    }
+
+    let numerator;
+    if(denom_is_smart){
+        const fB_smart_res = calculateF_Smart(B_raw).res;
+        numerator = fB_smart_res.times(diff_b_a); 
+    } else {
+        numerator = manualRound(fb.times(diff_b_a));
+    }
+
+    let fraction;
+    if(denom_is_smart){
+        fraction = numerator.dividedBy(diff_fb_fa);
+    } else {
+        fraction = manualRound(numerator.dividedBy(diff_fb_fa));
+    }
+    
+    let C_raw = B_raw.minus(fraction); 
+    let C_round = manualRound(C_raw);  
+
+    let fC_Obj = calculateF_Manual(C_round);
+    let fc = fC_Obj.res;
+    
+    let fc_is_smart = false;
+    let smart_fc_str = null;
+
+    if(fc.isZero()){
+        const fc_smart_res = calculateF_Smart(C_raw).res;
+        if(!fc_smart_res.isZero()){
+             fc = fc_smart_res;
+             fc_is_smart = true;
+             smart_fc_str = fc_smart_res.toExponential(3);
+        }
+    }
+
+    const absFc = fc.abs();
+
+    const sA = formatVal(A_round); 
+    const sB = formatVal(B_round); 
+    const sFa = formatVal(fa); 
+    const sFb = formatVal(fb); 
+    
+    const sDiffBA = formatVal(diff_b_a, smart_diff_ba_val);
+    const sDiffF  = formatVal(diff_fb_fa, smart_denom_val);
+    const sNumer  = denom_is_smart ? numerator.toExponential(3) : formatVal(numerator);
+    const sFrac   = denom_is_smart ? fraction.toExponential(3) : formatVal(fraction);
+    
+    const sC = formatVal(C_round);
+    const sFc = formatVal(fc, smart_fc_str);
+    const sAbsFc = denom_is_smart || fc_is_smart ? absFc.toExponential(3) : formatVal(absFc);
+
+    const cLine1 = `c = b - [ f(b) * (b - a) ] / [ f(b) - f(a) ]`;
+    const cLineSub = `  = ${sB} - [ ${sFb} * (${sB} - ${sA}) ] / [ ${sFb} - ${sFa} ]`;
+    const cLine2 = `  = ${sB} - [ ${sFb} * (${sDiffBA}) ] / [ ${sDiffF} ]`;
+    const cLine3 = `  = ${sB} - [ ${sNumer} / ${sDiffF} ]`;
+    const cLine4 = `  = ${sB} - ${sFrac} = ${sC}`;
+
+    const sT1 = formatVal(fC_Obj.term1);
+    const sT2 = formatVal(fC_Obj.term2);
+    const sT3 = formatVal(fC_Obj.term3);
+
+    const fcLine1 = `f(c) = (${sC})³ - 2(${sC})² + 3(${sC}) - 5`;
+    const fcLine2 = `     = ${sT1} - ${sT2} + ${sT3} - 5`;
+    const fcLine3 = `     = ${sFc}`;
+
+    let boxClass = 'iterasi-box';
+    let modeInfo = "Manual";
+    if(denom_is_smart || fc_is_smart) {
+        modeInfo = "SMART (Scientific)";
+    }
+
+    const iterText =
+`Iterasi ke-${i} [${modeInfo}]
+a = ${sA}, b = ${sB}
+f(a) = ${sFa}, f(b) = ${sFb}
+
+Rumus c:
+${cLine1}
+${cLineSub}
+${cLine2}
+${cLine3}
+${cLine4}
+
+Hitung f(c):
+${fcLine1}
+${fcLine2}
+${fcLine3}
+
+Cek Konvergensi:
+|f(c)| = ${sAbsFc} ${absFc.lte(tol) ? '≤' : '>'} 10⁻⁸
+
+${absFc.lte(tol) ? 'TARGET TERCAPAI' : `Update Nilai:\na = b (${sB})\nb = c (${sC})`}
+---------------------------------`;
+
+    const div = document.createElement('div');
+    div.className = boxClass;
+    if(denom_is_smart || fc_is_smart) div.style.borderLeftColor = "#8b5cf6"; 
+    div.textContent = iterText;
+    hasilArea.appendChild(div);
+
+    dataExcel.push([ i, sA, sFa, sB, sFb, sC, sFc, sAbsFc, modeInfo ]);
+
+    if(absFc.lte(tol)){
+      const endDiv = document.createElement('div');
+      endDiv.className = 'converged';
+      endDiv.textContent = `SELESAI — Akar ≈ ${sC} pada iterasi ke-${i}.`;
+      hasilArea.appendChild(endDiv);
+      dataExcel.push(["SELESAI", "", "", "", "", sC, "", sAbsFc, `iterasi ${i}`]);
+      break;
+    }
+
+    A_raw = B_raw; 
+    B_raw = C_raw; 
+  }
+}
+
+function downloadExcel() {
+  if (!dataExcel || dataExcel.length <= 1) { alert("Hitung dulu."); return; }
+  const ws = XLSX.utils.aoa_to_sheet(dataExcel);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Secant Hybrid");
+  XLSX.writeFile(wb, "hasil_secant_hybrid.xlsx");
+}
+
+function downloadPDF() {
+  if (document.getElementById('hasilArea').style.display === 'none' || dataExcel.length <= 1) {
+    alert("Hitung dulu."); return;
+  }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+  const hasilArea = document.getElementById('hasilArea');
+  const items = hasilArea.querySelectorAll('.iterasi-box, .converged');
+  let y = 10;
+  const pageHeight = 297;
+  const margin = 10;
+  const contentWidth = 190;
+  const renderNext = (index) => {
+    if (index >= items.length) {
+      doc.save("hasil_secant_iterasi.pdf");
+      return;
+    }
+    html2canvas(items[index], { scale: 1 }).then((canvas) => {
+      const imgData = canvas.toDataURL("image/jpeg", 0.6);
+      const imgWidth = contentWidth;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+      if (y + imgHeight > pageHeight - margin) {
+        doc.addPage();
+        y = 10;
+      }
+      doc.addImage(imgData, 'JPEG', margin, y, imgWidth, imgHeight);
+      y += imgHeight + 8;
+      renderNext(index + 1);
+    });
+  };
+  renderNext(0);
+}
+</script>
+</body>
+</html>

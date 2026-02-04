@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Kalkulator Numerik Gabungan (All-in-One)</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+      body {
+        font-family: Arial, Helvetica, sans-serif;
+        max-width: 1200px;
+        margin: 20px auto;
+        background: #f5f7fb;
+        padding: 18px;
+        color: #111;
+      }
+      .container {
+        background: #fff;
+        padding: 18px;
+        border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(9, 30, 66, 0.08);
+        margin-bottom: 20px;
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 6px;
+        color: #1e3a8a;
+      }
+      h2.method-title {
+        background: #1e3a8a;
+        color: #fff;
+        padding: 10px;
+        border-radius: 6px;
+        margin-top: 0;
+        font-size: 1.2rem;
+      }
+      .display-sample {
+        font-family: "Courier New", monospace;
+        text-align: center;
+        background: #222;
+        color: #ff9800;
+        padding: 8px;
+        border-radius: 6px;
+        display: block;
+        margin: 0 auto 12px auto;
+        width: fit-content;
+      }
+      .inputs {
+        display: flex;
+        gap: 12px;
+        align-items: end;
+        margin: 12px 0 20px 0;
+        flex-wrap: wrap;
+        justify-content: center;
+        background: #f0f4f8;
+        padding: 15px;
+        border-radius: 8px;
+      }
+      .inputs label {
+        display: block;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+      }
+      input[type="number"],
+      select {
+        padding: 8px;
+        border: 1px solid #d7dbe0;
+        border-radius: 6px;
+        width: 160px;
+      }
+      button.btn-calc {
+        background: #007bff;
+        color: #fff;
+        padding: 10px 20px;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 14px;
+        height: 60px;
+      }
+      button.btn-calc:hover {
+        background: #0056b3;
+      }
+
+      /* Download Section Styles */
+      .download-section {
+        display: none; /* Hidden by default until calculated */
+        background: #e6fffa;
+        border: 2px solid #38b2ac;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        margin-bottom: 20px;
+      }
+      .btn-download {
+        padding: 10px 20px;
+        border: 0;
+        border-radius: 6px;
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 14px;
+        margin: 5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .btn-excel {
+        background: #16a34a;
+        color: white;
+      }
+      .btn-excel:hover {
+        background: #15803d;
+      }
+      .btn-pdf {
+        background: #b91c1c;
+        color: white;
+      }
+      .btn-pdf:hover {
+        background: #991b1b;
+      }
+
+      .error {
+        color: #b00020;
+        margin-top: 8px;
+        font-weight: bold;
+      }
+
+      .iterasi-box {
+        background: #fbfcfe;
+        border-left: 4px solid #1e3a8a;
+        padding: 14px 16px;
+        margin-bottom: 12px;
+        border-radius: 8px;
+        white-space: pre-line;
+        font-family: "Courier New", monospace;
+        font-size: 14px;
+        color: #0b1220;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      }
+      /* Newton specific styling color */
+      .newton-box {
+        border-left-color: #ff9800;
+      }
+
+      .converged {
+        background: #ecfdf5;
+        border: 1px solid #bbf7d0;
+        padding: 12px;
+        border-radius: 8px;
+        font-weight: 700;
+        text-align: center;
+        margin-top: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Kalkulator Numerik All-in-One</h1>
+      <div class="display-sample">Persamaan: $f(x) = x^3 - 2x^2 + 3x - 5$</div>
+      <div
+        style="
+          text-align: center;
+          font-size: 0.9em;
+          color: #555;
+          margin-bottom: 10px;
+        "
+      >
+        (Metode Newton menggunakan turunan $f'(x) = 3x^2 - 4x + 3$)
+      </div>
+
+      <div class="inputs">
+        <div class="field">
+          <label>Nilai A</label>
+          <small style="color: #666">Batas Bawah / $x_0$</small>
+          <input id="aInput" type="number" step="any" value="-2" />
+        </div>
+        <div class="field">
+          <label>Nilai B</label>
+          <small style="color: #666">Batas Atas / $x_1$</small>
+          <input id="bInput" type="number" step="any" value="2" />
+        </div>
+        <div class="field">
+          <label>Mode Pembulatan</label>
+          <small style="color: #666">&nbsp;</small>
+          <select id="roundMode">
+            <option value="ROUND_HALF_UP" selected>ROUND_HALF_UP</option>
+            <option value="ROUND_HALF_EVEN">ROUND_HALF_EVEN</option>
+            <option value="ROUND_HALF_DOWN">ROUND_HALF_DOWN</option>
+          </select>
+        </div>
+        <div style="align-self: center; margin-left: 10px">
+          <button class="btn-calc" onclick="hitungSemua()">HITUNG SEMUA</button>
+        </div>
+      </div>
+
+      <div id="globalError" class="error" style="text-align: center"></div>
+
+      <div id="downloadArea" class="download-section">
+        <h3>Hasil Perhitungan Selesai</h3>
+        <p>Silakan unduh laporan lengkap untuk keempat metode di bawah ini.</p>
+        <div>
+          <button class="btn-download btn-excel" onclick="downloadAllExcel()">
+            <span>📄</span> Download Semua ke Excel (.xlsx)
+          </button>
+          <button class="btn-download btn-pdf" onclick="downloadAllPDF()">
+            <span>📕</span> Download Semua ke PDF (.pdf)
+          </button>
+        </div>
+        <div style="margin-top: 8px; font-size: 0.85em; color: #555">
+          *Excel akan berisi 4 Sheet (Biseksi, Regula, Newton, Secant)<br />
+          *PDF akan berisi seluruh langkah iterasi semua metode
+        </div>
+      </div>
+    </div>
+
+    <div class="container" id="containerBiseksi">
+      <h2 class="method-title">1. Metode Biseksi</h2>
+      <div id="errorBiseksi" class="error"></div>
+      <div id="hasilBiseksi" style="display: none"></div>
+    </div>
+
+    <div class="container" id="containerRegula">
+      <h2 class="method-title">2. Metode Regula Falsi</h2>
+      <div id="errorRegula" class="error"></div>
+      <div id="hasilRegula" style="display: none"></div>
+    </div>
+
+    <div class="container" id="containerNewton">
+      <h2 class="method-title">3. Metode Newton-Raphson</h2>
+      <div style="margin-bottom: 10px; font-size: 0.9em">
+        *Menggunakan Nilai A sebagai $x_{awal}$
+      </div>
+      <div id="errorNewton" class="error"></div>
+      <div id="hasilNewton" style="display: none"></div>
+    </div>
+
+    <div class="container" id="containerSecant">
+      <h2 class="method-title">4. Metode Secant</h2>
+      <div id="errorSecant" class="error"></div>
+      <div id="hasilSecant" style="display: none"></div>
+    </div>
+
+    <script>
+      // --- GLOBAL VARIABLES FOR DATA EXPORT ---
+      let excelDataBiseksi = [];
+      let excelDataRegula = [];
+      let excelDataNewton = [];
+      let excelDataSecant = [];
+
+      // --- CONFIGURATION & HELPERS (SHARED) ---
+      const ROUND_MAP = {
+        ROUND_HALF_UP: Decimal.ROUND_HALF_UP,
+        ROUND_HALF_EVEN: Decimal.ROUND_HALF_EVEN,
+        ROUND_HALF_DOWN: Decimal.ROUND_HALF_DOWN,
+      };
+
+      function setDecimalConfig(roundKey) {
+        Decimal.set({ precision: 60, rounding: ROUND_MAP[roundKey] });
+      }
+
+      // Strict Rounding: Memaksa angka dibulatkan ke 9 desimal dan membuang sisanya
+      function strictRound(decVal) {
+        if (!decVal.isFinite()) return decVal;
+        return new Decimal(decVal.toFixed(9));
+      }
+
+      // Format Tampilan
+      function toDisplay(dec) {
+        let s = dec.toFixed(9);
+        s = s.replace(/\.?0+$/, "");
+        if (s === "" || s === "-0") s = "0";
+        return s;
+      }
+
+      // Hitung f(x) Strict per komponen (Shared logic)
+      function calculateFStrict(valDec) {
+        // f(x) = x^3 - 2x^2 + 3x - 5
+        const term1 = strictRound(valDec.pow(3));
+        const term2 = strictRound(valDec.pow(2).times(2));
+        const term3 = strictRound(valDec.times(3));
+
+        const res = term1.minus(term2).plus(term3).minus(5);
+        return { res, term1, term2, term3 };
+      }
+
+      // --- MAIN CONTROLLER ---
+      function hitungSemua() {
+        const aVal = document.getElementById("aInput").value;
+        const bVal = document.getElementById("bInput").value;
+        const roundKey = document.getElementById("roundMode").value;
+        const globalErr = document.getElementById("globalError");
+        const downloadArea = document.getElementById("downloadArea");
+
+        globalErr.textContent = "";
+        downloadArea.style.display = "none";
+
+        // Clear previous results
+        document.getElementById("hasilBiseksi").innerHTML = "";
+        document.getElementById("hasilRegula").innerHTML = "";
+        document.getElementById("hasilNewton").innerHTML = "";
+        document.getElementById("hasilSecant").innerHTML = "";
+
+        document.getElementById("errorBiseksi").textContent = "";
+        document.getElementById("errorRegula").textContent = "";
+        document.getElementById("errorNewton").textContent = "";
+        document.getElementById("errorSecant").textContent = "";
+
+        if (String(aVal).trim() === "" || String(bVal).trim() === "") {
+          globalErr.textContent = "Harap masukkan Nilai A dan Nilai B.";
+          return;
+        }
+
+        setDecimalConfig(roundKey);
+
+        let A, B;
+        try {
+          A = new Decimal(aVal);
+          B = new Decimal(bVal);
+        } catch (e) {
+          globalErr.textContent = "Format angka tidak valid.";
+          return;
+        }
+
+        // Jalankan semua metode
+        runBiseksi(A, B);
+        runRegula(A, B);
+        runNewton(A); // Newton hanya butuh A
+        runSecant(A, B);
+
+        // Tampilkan tombol download
+        downloadArea.style.display = "block";
+      }
+
+      // --- 1. LOGIKA BISEKSI ---
+      function runBiseksi(startA, startB) {
+        const outputDiv = document.getElementById("hasilBiseksi");
+        const errDiv = document.getElementById("errorBiseksi");
+        outputDiv.style.display = "block";
+        excelDataBiseksi = [
+          ["Iterasi", "a", "b", "c", "f(c)", "|a - b|", "Keputusan"],
+        ];
+
+        let A = strictRound(startA);
+        let B = strictRound(startB);
+        const tol = new Decimal("1e-8");
+
+        let fA_Obj = calculateFStrict(A);
+        let fB_Obj = calculateFStrict(B);
+        let fa = fA_Obj.res;
+        let fb = fB_Obj.res;
+
+        if (fa.times(fb).gt(0)) {
+          errDiv.textContent = "Error: f(a) dan f(b) harus berlawanan tanda.";
+          excelDataBiseksi = []; // Clear data on error
+          return;
+        }
+
+        for (let i = 1; i <= 100; i++) {
+          const C = strictRound(A.plus(B).dividedBy(2));
+          const fC_Obj = calculateFStrict(C);
+          const fc = fC_Obj.res;
+          const product = strictRound(fa.times(fc));
+          const jarak = A.minus(B).abs();
+
+          const sA = toDisplay(A);
+          const sB = toDisplay(B);
+          const sC = toDisplay(C);
+          const sJarak = toDisplay(jarak);
+          const sCcube = toDisplay(fC_Obj.term1);
+          const sCsquare = toDisplay(fC_Obj.term2);
+          const sClinear = toDisplay(fC_Obj.term3);
+          const sFc = toDisplay(fc);
+          const sFa = toDisplay(fa);
+          const sProduct = toDisplay(product);
+          const compTol = jarak.lte(tol) ? `<= 10⁻⁸` : `> 10⁻⁸`;
+          const jarakLine = `|a - b| = |${sA} - ${sB}| = ${sJarak} ${compTol}`;
+
+          let kondisiText = "";
+          if (product.lt(0)) {
+            kondisiText = `f(a) * f(c) < 0 (<span style="color:green">Negatif</span>) → b = c`;
+          } else {
+            kondisiText = `f(a) * f(c) > 0 (<span style="color:red">Positif</span>) → a = c`;
+          }
+
+          const iterText = `Iterasi ke-${i}
+${jarakLine}
+c = (${sA} + ${sB}) / 2 = ${sC}
+
+f(c) = (${sC})³ - 2(${sC})² + 3(${sC}) - 5
+      = ${sCcube} - ${sCsquare} + ${sClinear} - 5
+      = ${sFc}
+
+f(a) * f(c) = (${sFa}) * (${sFc}) = ${sProduct}
+${kondisiText}
+---------------------------------`;
+
+          const div = document.createElement("div");
+          div.className = "iterasi-box";
+          div.innerHTML = iterText;
+          outputDiv.appendChild(div);
+
+          excelDataBiseksi.push([
+            i,
+            sA,
+            sB,
+            sC,
+            sFc,
+            sJarak,
+            product.lt(0) ? "b = c" : "a = c",
+          ]);
+
+          if (jarak.lte(tol)) {
+            const endDiv = document.createElement("div");
+            endDiv.className = "converged";
+            endDiv.textContent = `KONVERGENSI — akar ≈ ${sC} (iterasi ${i})`;
+            outputDiv.appendChild(endDiv);
+            excelDataBiseksi.push([
+              "KONVERGENSI",
+              "",
+              "",
+              sC,
+              "",
+              sJarak,
+              `iterasi ${i}`,
+            ]);
+            break;
+          }
+
+          if (product.lt(0)) {
+            B = C;
+            fb = fc;
+          } else {
+            A = C;
+            fa = fc;
+          }
+        }
+      }
+
+      // --- 2. LOGIKA REGULA FALSI ---
+      function runRegula(startA, startB) {
+        const outputDiv = document.getElementById("hasilRegula");
+        const errDiv = document.getElementById("errorRegula");
+        outputDiv.style.display = "block";
+        excelDataRegula = [
+          [
+            "Iterasi",
+            "a",
+            "f(a)",
+            "b",
+            "f(b)",
+            "c",
+            "f(c)",
+            "|f(c)|",
+            "Keputusan",
+          ],
+        ];
+
+        let A = strictRound(startA);
+        let B = strictRound(startB);
+        const tol = new Decimal("1e-8");
+
+        let fA_Obj = calculateFStrict(A);
+        let fB_Obj = calculateFStrict(B);
+        let fa = fA_Obj.res;
+        let fb = fB_Obj.res;
+
+        if (fa.times(fb).gt(0)) {
+          errDiv.textContent = "Error: f(a) dan f(b) harus berlawanan tanda.";
+          excelDataRegula = [];
+          return;
+        }
+
+        for (let i = 1; i <= 100; i++) {
+          const denom = fa.minus(fb);
+          if (denom.isZero()) {
+            outputDiv.innerHTML += `<div class="error">Error: Pembagian nol.</div>`;
+            break;
+          }
+
+          const diff_ab = A.minus(B);
+          const numer = strictRound(fb.times(diff_ab));
+          const fraction = strictRound(numer.dividedBy(denom));
+          let C = strictRound(B.minus(fraction));
+
+          const fC_Obj = calculateFStrict(C);
+          const fc = fC_Obj.res;
+          const absFc = fc.abs();
+          const product = strictRound(fa.times(fc));
+
+          let kondisi = "";
+          let nextA = A;
+          let nextB = B;
+          let nextFa = fa;
+          let nextFb = fb;
+
+          if (product.lt(0)) {
+            kondisi = `f(a) * f(c) < 0 → b = c`;
+            nextB = C;
+            nextFb = fc;
+          } else {
+            kondisi = `f(a) * f(c) > 0 → a = c`;
+            nextA = C;
+            nextFa = fc;
+          }
+
+          const sA = toDisplay(A);
+          const sFa = toDisplay(fa);
+          const sB = toDisplay(B);
+          const sFb = toDisplay(fb);
+          const sC = toDisplay(C);
+          const sFc = toDisplay(fc);
+          const sAbsFc = toDisplay(absFc);
+
+          const sDiffAB = toDisplay(diff_ab);
+          const sNumer = toDisplay(numer);
+          const sDenom = toDisplay(denom);
+          const sFrac = toDisplay(fraction);
+          const sCcube = toDisplay(fC_Obj.term1);
+          const sCsq = toDisplay(fC_Obj.term2);
+          const sClin = toDisplay(fC_Obj.term3);
+
+          const iterText = `Iterasi ke-${i}
+Interval: [a=${sA}, b=${sB}]
+f(a)=${sFa} | f(b)=${sFb}
+
+Rumus c:
+c = b - [ f(b) * (a - b) ] / [ f(a) - f(b) ]
+  = ${sB} - [ ${sFb} * (${sA} - ${sB}) ] / [ ${sFa} - ${sFb} ]
+  = ${sB} - [ ${sFb} * (${sDiffAB}) ] / [ ${sDenom} ]
+  = ${sB} - [ ${sNumer} ] / [ ${sDenom} ]
+  = ${sB} - ${sFrac} = ${sC}
+
+Hitung f(c):
+f(c) = (${sC})³ - 2(${sC})² + 3(${sC}) - 5
+     = ${sCcube} - ${sCsq} + ${sClin} - 5
+     = ${sFc}
+
+Cek Tanda:
+f(a) * f(c) = (${sFa}) * (${sFc})
+            = ${toDisplay(product)}
+Karena ${kondisi}
+
+Cek Konvergensi:
+|f(c)| = ${sAbsFc} ${absFc.lte(tol) ? "≤" : ">"} 10⁻⁸
+---------------------------------`;
+
+          const div = document.createElement("div");
+          div.className = "iterasi-box";
+          div.textContent = iterText;
+          outputDiv.appendChild(div);
+
+          excelDataRegula.push([i, sA, sFa, sB, sFb, sC, sFc, sAbsFc, kondisi]);
+
+          if (absFc.lte(tol)) {
+            const endDiv = document.createElement("div");
+            endDiv.className = "converged";
+            endDiv.textContent = `KONVERGENSI — Akar ≈ ${sC} (iterasi ${i})`;
+            outputDiv.appendChild(endDiv);
+            excelDataRegula.push([
+              "SELESAI",
+              "",
+              "",
+              "",
+              "",
+              sC,
+              "",
+              sAbsFc,
+              `iterasi ${i}`,
+            ]);
+            break;
+          }
+
+          A = nextA;
+          B = nextB;
+          fa = nextFa;
+          fb = nextFb;
+        }
+      }
+
+      // --- 3. LOGIKA NEWTON RAPHSON ---
+      function runNewton(startA) {
+        const outputDiv = document.getElementById("hasilNewton");
+        outputDiv.style.display = "block";
+        excelDataNewton = [
+          [
+            "Iterasi",
+            "a ($x_i$)",
+            "f(a)",
+            "f'(a)",
+            "b ($x_{i+1}$)",
+            "f'(b)",
+            "|f(b)|",
+            "Ket",
+          ],
+        ];
+
+        let A = strictRound(startA);
+        const tol = new Decimal("1e-8");
+
+        for (let i = 1; i <= 100; i++) {
+          const term1_a = strictRound(A.pow(3));
+          const term2_a = strictRound(A.pow(2).times(2));
+          const term3_a = strictRound(A.times(3));
+          const Fa = term1_a.minus(term2_a).plus(term3_a).minus(5);
+
+          const p_term1_a = strictRound(A.pow(2).times(3));
+          const p_term2_a = strictRound(A.times(4));
+          const F_prime_a = p_term1_a.minus(p_term2_a).plus(3);
+
+          if (F_prime_a.isZero()) {
+            outputDiv.innerHTML += `<div class="error">Error: f'(a) = 0 pada iterasi ${i}.</div>`;
+            break;
+          }
+
+          const fraction = strictRound(Fa.dividedBy(F_prime_a));
+          let B = strictRound(A.minus(fraction));
+
+          const comp_pow3 = strictRound(B.pow(3));
+          const comp_pow2_x2 = strictRound(B.pow(2).times(2));
+          const comp_x3 = strictRound(B.times(3));
+          const Fb = comp_pow3.minus(comp_pow2_x2).plus(comp_x3).minus(5);
+          const absFb = Fb.abs();
+
+          const comp_prime_pow2_x3 = strictRound(B.pow(2).times(3));
+          const comp_prime_x4 = strictRound(B.times(4));
+          const F_prime_b = comp_prime_pow2_x3.minus(comp_prime_x4).plus(3);
+
+          const sA = toDisplay(A);
+          const sFa = toDisplay(Fa);
+          const sF_prime_a = toDisplay(F_prime_a);
+          const sB = toDisplay(B);
+          const sFb = toDisplay(Fb);
+          const sAbsFb = toDisplay(absFb);
+          const sF_prime_b = toDisplay(F_prime_b);
+
+          const iterText = `Iterasi ke-${i}
+a = ${sA}
+f(a) = ${sFa}
+f'(a) = ${sF_prime_a}
+
+Rumus b:
+b = a - f(a) / f'(a)
+  = ${sA} - ${sFa} / ${sF_prime_a}
+  = ${sA} - ${toDisplay(fraction)}
+b = ${sB}
+
+Hitung f(b):
+f(b) = (${sB})³ - 2(${sB})² + 3(${sB}) - 5
+      = ${toDisplay(comp_pow3)} - ${toDisplay(comp_pow2_x2)} + ${toDisplay(comp_x3)} - 5
+      = ${sFb}
+
+Hitung f'(b):
+f'(b) = 3(${sB})² - 4(${sB}) + 3
+      = ${toDisplay(comp_prime_pow2_x3)} - ${toDisplay(comp_prime_x4)} + 3
+      = ${sF_prime_b}
+
+Cek Konvergensi:
+|f(b)| = ${sAbsFb} ${absFb.lte(tol) ? "≤" : ">"} 10⁻⁸
+
+${absFb.lte(tol) ? "TARGET TERCAPAI" : `Karena belum, maka untuk iterasi berikutnya:\na = b (${sB})`}
+---------------------------------`;
+
+          const div = document.createElement("div");
+          div.className = "iterasi-box newton-box";
+          div.textContent = iterText;
+          outputDiv.appendChild(div);
+
+          excelDataNewton.push([
+            i,
+            sA,
+            sFa,
+            sF_prime_a,
+            sB,
+            sF_prime_b,
+            sAbsFb,
+            absFb.lte(tol) ? "Selesai" : "Lanjut",
+          ]);
+
+          if (absFb.lte(tol)) {
+            const endDiv = document.createElement("div");
+            endDiv.className = "converged";
+            endDiv.textContent = `SELESAI — Akar ≈ ${sB} pada iterasi ke-${i}.`;
+            outputDiv.appendChild(endDiv);
+            excelDataNewton.push([
+              "SELESAI",
+              "",
+              "",
+              "",
+              sB,
+              sF_prime_b,
+              sAbsFb,
+              `iterasi ${i}`,
+            ]);
+            break;
+          }
+          A = B;
+        }
+      }
+
+      // --- 4. LOGIKA SECANT ---
+      function runSecant(startA, startB) {
+        const outputDiv = document.getElementById("hasilSecant");
+        outputDiv.style.display = "block";
+        excelDataSecant = [
+          ["Iterasi", "a", "f(a)", "b", "f(b)", "c", "f(c)", "|f(c)|", "Ket"],
+        ];
+
+        let A = strictRound(startA);
+        let B = strictRound(startB);
+        const tol = new Decimal("1e-8");
+
+        let fA_Obj = calculateFStrict(A);
+        let fB_Obj = calculateFStrict(B);
+        let fa = fA_Obj.res;
+        let fb = fB_Obj.res;
+
+        for (let i = 1; i <= 100; i++) {
+          const diff_b_a = B.minus(A);
+          const diff_fb_fa = fb.minus(fa);
+
+          if (diff_fb_fa.isZero()) {
+            const msg = `STOP: Penyebut nol (f(b) ≈ f(a)).\nNilai a dan b sudah identik (${toDisplay(B)}).`;
+            const div = document.createElement("div");
+            div.className = "converged";
+            div.style.background = "#fff3cd";
+            div.textContent = msg;
+            outputDiv.appendChild(div);
+            excelDataSecant.push([
+              "STOP",
+              "",
+              "",
+              "",
+              "",
+              toDisplay(B),
+              "",
+              "Penyebut 0",
+            ]);
+            break;
+          }
+
+          const numerator = strictRound(fb.times(diff_b_a));
+          const fraction = strictRound(numerator.dividedBy(diff_fb_fa));
+          let C = strictRound(B.minus(fraction));
+
+          const fC_Obj = calculateFStrict(C);
+          const fc = fC_Obj.res;
+          const absFc = fc.abs();
+
+          const sA = toDisplay(A);
+          const sFa = toDisplay(fa);
+          const sB = toDisplay(B);
+          const sFb = toDisplay(fb);
+          const sC = toDisplay(C);
+          const sFc = toDisplay(fc);
+          const sAbsFc = toDisplay(absFc);
+          const sDiffBA = toDisplay(diff_b_a);
+          const sDiffF = toDisplay(diff_fb_fa);
+          const sNumer = toDisplay(numerator);
+          const sFrac = toDisplay(fraction);
+          const sT1 = toDisplay(fC_Obj.term1);
+          const sT2 = toDisplay(fC_Obj.term2);
+          const sT3 = toDisplay(fC_Obj.term3);
+
+          const iterText = `Iterasi ke-${i}
+a = ${sA}, b = ${sB}
+f(a) = ${sFa}, f(b) = ${sFb}
+
+Rumus c:
+c = b - [ f(b) * (b - a) ] / [ f(b) - f(a) ]
+  = ${sB} - [ ${sFb} * (${sB} - ${sA}) ] / [ ${sFb} - ${sFa} ]
+  = ${sB} - [ ${sFb} * (${sDiffBA}) ] / [ ${sDiffF} ]
+  = ${sB} - [ ${sNumer} / ${sDiffF} ]
+  = ${sB} - ${sFrac} = ${sC}
+
+Hitung f(c):
+f(c) = (${sC})³ - 2(${sC})² + 3(${sC}) - 5
+     = ${sT1} - ${sT2} + ${sT3} - 5
+     = ${sFc}
+
+Cek Konvergensi:
+|f(c)| = ${sAbsFc} ${absFc.lte(tol) ? "≤" : ">"} 10⁻⁸
+
+${absFc.lte(tol) ? "TARGET TERCAPAI" : `Update Nilai:\na = b (${sB})\nb = c (${sC})`}
+---------------------------------`;
+
+          const div = document.createElement("div");
+          div.className = "iterasi-box";
+          div.textContent = iterText;
+          outputDiv.appendChild(div);
+
+          excelDataSecant.push([
+            i,
+            sA,
+            sFa,
+            sB,
+            sFb,
+            sC,
+            sFc,
+            sAbsFc,
+            absFc.lte(tol) ? "Selesai" : "Lanjut",
+          ]);
+
+          if (absFc.lte(tol)) {
+            const endDiv = document.createElement("div");
+            endDiv.className = "converged";
+            endDiv.textContent = `SELESAI — Akar ≈ ${sC} pada iterasi ke-${i}.`;
+            outputDiv.appendChild(endDiv);
+            excelDataSecant.push([
+              "SELESAI",
+              "",
+              "",
+              "",
+              "",
+              sC,
+              "",
+              sAbsFc,
+              `iterasi ${i}`,
+            ]);
+            break;
+          }
+
+          A = B;
+          B = C;
+          fa = fb;
+          fb = fc;
+        }
+      }
+
+      // --- FUNGSI DOWNLOAD GABUNGAN ---
+
+      function downloadAllExcel() {
+        if (
+          excelDataBiseksi.length <= 1 &&
+          excelDataRegula.length <= 1 &&
+          excelDataNewton.length <= 1 &&
+          excelDataSecant.length <= 1
+        ) {
+          alert(
+            "Tidak ada data hasil perhitungan. Silakan hitung terlebih dahulu.",
+          );
+          return;
+        }
+
+        const wb = XLSX.utils.book_new();
+
+        // Helper untuk tambah sheet jika ada data
+        function addSheet(data, sheetName) {
+          if (data && data.length > 1) {
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            XLSX.utils.book_append_sheet(wb, ws, sheetName);
+          }
+        }
+
+        addSheet(excelDataBiseksi, "Biseksi");
+        addSheet(excelDataRegula, "Regula Falsi");
+        addSheet(excelDataNewton, "Newton Raphson");
+        addSheet(excelDataSecant, "Secant");
+
+        if (wb.SheetNames.length === 0) {
+          alert("Semua metode gagal atau tidak menghasilkan data.");
+          return;
+        }
+
+        XLSX.writeFile(wb, "hasil_gabungan_metode_numerik.xlsx");
+      }
+
+      function downloadAllPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF("p", "mm", "a4");
+
+        // Antrian elemen yang akan dicetak
+        // Format: { type: 'header'|'element', val: string|HTMLElement, title: string }
+        let printQueue = [];
+
+        // Header Utama
+        printQueue.push({
+          type: "main-title",
+          val: "Laporan Hasil Metode Numerik Gabungan",
+        });
+
+        // Info Input
+        const aVal = document.getElementById("aInput").value;
+        const bVal = document.getElementById("bInput").value;
+        const infoText = `Input: A = ${aVal}, B = ${bVal}, Mode: ${document.getElementById("roundMode").value}`;
+        printQueue.push({ type: "text", val: infoText });
+        printQueue.push({
+          type: "text",
+          val: "Persamaan: f(x) = x^3 - 2x^2 + 3x - 5",
+        });
+        printQueue.push({ type: "spacer", val: 10 });
+
+        // Fungsi helper untuk ambil elemen dari container
+        function collectElements(containerId, title) {
+          const container = document.getElementById(containerId);
+          const resultDiv = container.querySelector('div[id^="hasil"]');
+
+          // Cek jika error atau kosong
+          const errDiv = container.querySelector(".error");
+          if (errDiv && errDiv.textContent !== "") return; // Skip jika error
+          if (
+            !resultDiv ||
+            resultDiv.style.display === "none" ||
+            resultDiv.innerText.trim() === ""
+          )
+            return;
+
+          printQueue.push({ type: "section-title", val: title });
+          const items = resultDiv.querySelectorAll(".iterasi-box, .converged");
+          items.forEach((el) => {
+            printQueue.push({ type: "element", val: el });
+          });
+          printQueue.push({ type: "page-break" }); // Ganti halaman antar metode
+        }
+
+        collectElements("containerBiseksi", "1. Metode Biseksi");
+        collectElements("containerRegula", "2. Metode Regula Falsi");
+        collectElements("containerNewton", "3. Metode Newton-Raphson");
+        collectElements("containerSecant", "4. Metode Secant");
+
+        // Proses Rendering Queue
+        let y = 20;
+        const pageHeight = 297;
+        const margin = 15;
+        const contentWidth = 180;
+
+        // Recursive function untuk proses queue
+        const processQueue = (index) => {
+          if (index >= printQueue.length) {
+            doc.save("laporan_lengkap_numerik.pdf");
+            return;
+          }
+
+          const item = printQueue[index];
+
+          if (item.type === "main-title") {
+            doc.setFontSize(16);
+            doc.setFont("helvetica", "bold");
+            doc.text(item.val, 105, y, { align: "center" });
+            y += 10;
+            processQueue(index + 1);
+          } else if (item.type === "section-title") {
+            if (y > pageHeight - 40) {
+              doc.addPage();
+              y = 20;
+            }
+            doc.setFontSize(14);
+            doc.setTextColor(30, 58, 138); // Biru
+            doc.setFont("helvetica", "bold");
+            doc.text(item.val, margin, y);
+            doc.setTextColor(0, 0, 0);
+            y += 8;
+            processQueue(index + 1);
+          } else if (item.type === "text") {
+            doc.setFontSize(10);
+            doc.setFont("helvetica", "normal");
+            doc.text(item.val, margin, y);
+            y += 6;
+            processQueue(index + 1);
+          } else if (item.type === "spacer") {
+            y += item.val;
+            processQueue(index + 1);
+          } else if (item.type === "page-break") {
+            if (index < printQueue.length - 1) {
+              // Jangan break di akhir dokumen
+              doc.addPage();
+              y = 20;
+            }
+            processQueue(index + 1);
+          } else if (item.type === "element") {
+            html2canvas(item.val, { scale: 1.5 }).then((canvas) => {
+              const imgData = canvas.toDataURL("image/jpeg", 0.8); // Compress sedikit biar ringan
+              const imgWidth = contentWidth;
+              const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+              if (y + imgHeight > pageHeight - margin) {
+                doc.addPage();
+                y = 20;
+              }
+
+              doc.addImage(imgData, "JPEG", margin, y, imgWidth, imgHeight);
+              y += imgHeight + 5;
+              processQueue(index + 1);
+            });
+          }
+        };
+
+        processQueue(0);
+      }
+    </script>
+  </body>
+</html>

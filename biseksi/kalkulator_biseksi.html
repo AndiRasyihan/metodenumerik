@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Kalkulator Metode Biseksi (10+2 match)</title>
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;max-width:1200px;margin:20px auto;background:#f5f5f5;padding:10px}
+        .container{background:#fff;padding:18px;border-radius:8px;box-shadow:0 0 12px rgba(0,0,0,.08)}
+        .header{text-align:center;margin-bottom:12px}
+        .display-sample{font-family: "Courier New", monospace; background:#222;color:#0f0;padding:10px;border-radius:6px;display:inline-block}
+        .input-section{background:#f8f9fa;padding:14px;border-radius:6px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end}
+        label{display:block;font-weight:600;margin-bottom:6px}
+        input[type=number], select{width:100%;padding:8px;border:1px solid #ddd;border-radius:4px}
+        button{background:#007bff;color:#fff;padding:9px 16px;border:0;border-radius:4px;cursor:pointer}
+        button:hover{background:#0056b3}
+        table{width:100%;border-collapse:collapse;margin-top:12px}
+        th,td{border:1px solid #e6e6e6;padding:10px;text-align:left;vertical-align:top}
+        th{background:#007bff;color:#fff}
+        .detail-box{background:#fafafa;padding:10px;border-radius:4px;border:1px solid #eee}
+        .monospace{font-family:"Courier New",monospace}
+        .error{color:#b00020;margin-top:8px}
+        .small{font-size:0.9em;color:#333}
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Kalkulator Metode Biseksi — Tampilan 10+2</h1>
+        <div class="display-sample">contoh: 1.234567890e+02</div>
+    </div>
+
+    <div class="input-section">
+        <div>
+            <label for="aInput">Nilai a</label>
+            <input id="aInput" type="number" step="any" />
+        </div>
+        <div>
+            <label for="bInput">Nilai b</label>
+            <input id="bInput" type="number" step="any" />
+        </div>
+
+        <div>
+            <label for="roundMode">Mode pembulatan (coba untuk cocokkan kalkulator)</label>
+            <select id="roundMode">
+                <option value="ROUND_HALF_UP">ROUND_HALF_UP</option>
+                <option value="ROUND_HALF_EVEN">ROUND_HALF_EVEN</option>
+                <option value="ROUND_HALF_DOWN">ROUND_HALF_DOWN</option>
+            </select>
+            <div class="small">Gunakan ROUND_HALF_UP jika kalkulator membulatkan .5 ke atas.</div>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center">
+            <div style="flex:1">
+                <label for="tolInput">Toleransi (decimal places)</label>
+                <input id="tolInput" type="number" step="1" value="10" />
+            </div>
+            <div>
+                <button onclick="hitungBiseksi()">Hitung</button>
+            </div>
+        </div>
+
+        <div style="grid-column: 1 / -1">
+            <div id="error" class="error"></div>
+        </div>
+    </div>
+
+    <div id="hasilArea" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <h2>Hasil Iterasi</h2>
+            <button onclick="downloadPDF()" style="background:#28a745">Download PDF</button>
+        </div>
+        <table id="hasilTable">
+            <thead>
+                <tr>
+                    <th>Iter</th><th>a</th><th>b</th><th>c</th><th>f(c)</th><th>|a-b|</th><th>f(a)*f(c)</th>
+                </tr>
+            </thead>
+            <tbody id="tbody"></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+/* Decimal.js helpers */
+const ROUND_MAP = {
+    'ROUND_HALF_UP': Decimal.ROUND_HALF_UP,
+    'ROUND_HALF_EVEN': Decimal.ROUND_HALF_EVEN,
+    'ROUND_HALF_DOWN': Decimal.ROUND_HALF_DOWN
+};
+
+function setDecimalConfig(roundKey){
+    Decimal.set({ precision: 60, rounding: ROUND_MAP[roundKey] });
+}
+
+function fDec(x){ return x.pow(3).minus(x.pow(2).times(2)).plus(x.times(3)).minus(5); }
+
+/* round to N significant digits (returns Decimal) */
+function roundToSignificant(dec, sig=10){
+    if(!dec.isFinite()) return dec;
+    return new Decimal(dec.toExponential(sig));
+}
+
+/* round to fixed decimal places (returns Decimal) */
+function roundFixed(dec, places){
+    if(!dec.isFinite()) return dec;
+    return new Decimal(dec.toFixed(places));
+}
+
+/* formatting helpers */
+function formatScientificDec(dec, sig=10, expDigits=2){
+    if(!dec.isFinite()) return String(dec);
+    const s = dec.toExponential(sig);
+    const parts = s.split('e');
+    if(parts.length !== 2) return s;
+    const mant = parts[0];
+    let exp = parts[1];
+    const sign = exp[0] === '+' || exp[0] === '-' ? exp[0] : '+';
+    let num = (exp[0] === '+' || exp[0] === '-') ? exp.slice(1) : exp;
+    num = num.padStart(expDigits, '0');
+    return mant + 'e' + sign + num;
+}
+
+function formatFixedDec(dec, places=10){
+    if(!dec.isFinite()) return String(dec);
+    return dec.toFixed(places);
+}
+
+/* Format number removing trailing zeros */
+function formatTrimZeros(dec) {
+    if(!dec.isFinite()) return String(dec);
+    
+    // Konversi ke string dengan presisi penuh
+    let str = dec.toString();
+    
+    // Hapus trailing zeros setelah desimal
+    if(str.includes('.')) {
+        // Hapus .0000... di belakang
+        str = str.replace(/\.?0+$/, '');
+        // Hapus trailing zeros setelah angka bukan nol
+        str = str.replace(/(\.\d*[1-9])0+$/, '$1');
+    }
+    
+    return str;
+}
+
+/*
+ Matching strategy:
+ - round inputs A,B to 10 significant digits
+ - round midpoint C to 10 significant digits
+ - compute components then round:
+    * c^3 -> round to 9 decimal places (matches kalkulator example)
+    * 2c^2 -> round to 9 decimal places
+    * 3c -> round to 5 decimal places
+ - compute total f(c) from those rounded components then round f(c) to 9 decimals for display
+ - compute product f(a)*f(c) and display in scientific 10-significant + 2-digit exponent
+*/
+function hitungBiseksi(){
+    const errEl = document.getElementById('error'); errEl.textContent = '';
+    const tbody = document.getElementById('tbody'); tbody.innerHTML = '';
+    document.getElementById('hasilArea').style.display = 'none';
+
+    const aVal = document.getElementById('aInput').value;
+    const bVal = document.getElementById('bInput').value;
+    const roundKey = document.getElementById('roundMode').value;
+    const tolPlaces = parseInt(document.getElementById('tolInput').value) || 10;
+
+    setDecimalConfig(roundKey);
+    const sig = 10, expD = 2;
+    const tol = new Decimal('1e-' + tolPlaces);
+
+    if(String(aVal).trim()===''||String(bVal).trim()===''){ errEl.textContent='Masukkan nilai a dan b.'; return; }
+
+    let A, B;
+    try { A = new Decimal(aVal); B = new Decimal(bVal); }
+    catch(e){ errEl.textContent='Format angka tidak valid.'; return; }
+
+    // round inputs to 10 significant digits
+    A = roundToSignificant(A, sig);
+    B = roundToSignificant(B, sig);
+
+    let fa = fDec(A);
+    let fb = fDec(B);
+    fa = roundFixed(fa, 9); // round f(a) to 9 decimals for display/uses
+    fb = roundFixed(fb, 9);
+
+    if(fa.times(fb).gt(0)){ errEl.textContent='f(a) dan f(b) harus berlawanan tanda.'; return; }
+
+    document.getElementById('hasilArea').style.display = 'block';
+
+    for(let i=1;i<=2000;i++){
+        const C_raw = A.plus(B).dividedBy(2);
+        const C = roundFixed(C_raw, 9);          // c dibulatkan ke 9 desimal
+
+        // compute and round components to match calculator sample
+        const c_cube_raw = C.pow(3);
+        const c_cube = roundFixed(c_cube_raw, 9);        // c³ -> 9 decimal places
+
+        const c_square_raw = C.pow(2).times(2);
+        const c_square = roundFixed(c_square_raw, 9);    // 2c² -> 9 decimal places
+
+        const c_linear_raw = C.times(3);
+        const c_linear = c_linear_raw;                   // 3c tanpa pembulatan
+
+        // total f(c) computed from components
+        let total_c = c_cube.minus(c_square).plus(c_linear).minus(5);
+        total_c = roundFixed(total_c, 9);               // total -> 9 decimal places
+
+        const total_a = fa;
+        let product = total_a.times(total_c);
+        product = roundToSignificant(product, sig);
+
+        // Display using formatTrimZeros to remove trailing zeros
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${i}</td>
+            <td class="monospace">${formatTrimZeros(A)}</td>
+            <td class="monospace">${formatTrimZeros(B)}</td>
+            <td class="monospace">${formatTrimZeros(C)}</td>
+            <td class="monospace">${formatTrimZeros(total_c)}</td>
+            <td class="monospace">${formatTrimZeros(A.minus(B).abs())}</td>
+            <td class="monospace">${formatScientificDec(product,sig,expD)}</td>
+        `;
+        tbody.appendChild(tr);
+
+        const det = document.createElement('tr');
+        det.innerHTML = `<td colspan="7">
+            <div class="detail-box monospace">
+                <strong>Detail f(c):</strong><br>
+                c = ${formatTrimZeros(C)}<br>
+                c³ = ${formatTrimZeros(c_cube)}<br>
+                2c² = ${formatTrimZeros(c_square)}<br>
+                3c = ${formatTrimZeros(c_linear)}<br>
+                konstanta = -5<br>
+                <strong>Total f(c) = ${formatTrimZeros(total_c)}</strong>
+                <br><br>
+                <strong>Detail f(a)*f(c):</strong><br>
+                f(a) = ${formatTrimZeros(fa)}<br>
+                f(c) = ${formatTrimZeros(total_c)}<br>
+                <strong>f(a)*f(c) = ${formatScientificDec(product,sig,expD)}</strong>
+            </div>
+        </td>`;
+        tbody.appendChild(det);
+
+        if(A.minus(B).abs().lte(tol)){
+            const endRow = document.createElement('tr');
+            endRow.innerHTML = `<td colspan="7" style="text-align:center;background:#e6ffea;font-weight:600">
+                KONVERGENSI — akar ≈ ${formatFixedDec(C,10)} (iterasi ${i})
+            </td>`;
+            tbody.appendChild(endRow);
+            break;
+        }
+
+        // update interval using rounded values
+        if(new Decimal(fa).times(total_c).lt(0)){
+            B = C; fb = total_c;
+        } else {
+            A = C;
+            fa = total_c;
+        }
+    }
+}
+
+function downloadPDF() {
+    // Siapkan opsi PDF
+    const opt = {
+        margin: [0.5, 0.5, 0.5, 0.5], // margin atas, kanan, bawah, kiri dalam inches
+        filename: 'hasil-metode-biseksi.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+            scale: 2,
+            useCORS: true,
+            logging: true,
+            letterRendering: true
+        },
+        jsPDF: { 
+            unit: 'in', 
+            format: 'a4', 
+            orientation: 'portrait',
+            compress: true
+        },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+    };
+
+    // Buat clone elemen untuk dimodifikasi
+    const element = document.getElementById('hasilArea').cloneNode(true);
+    
+    // Tambahkan style untuk memastikan konten muat
+    element.style.width = '100%';
+    element.style.maxWidth = '100%';
+    element.style.margin = '0';
+    element.style.padding = '10px';
+    
+    // Generate PDF dengan opsi yang diperbarui
+    html2pdf().set(opt).from(element).save();
+}
+
+</script>
+</body>
+</html>

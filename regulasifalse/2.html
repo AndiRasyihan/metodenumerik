@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kalkulator Metode Regula Falsi — Langkah per Iterasi (Tampilan Rapi)</title>
+
+<!-- SheetJS untuk Excel -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+  body{
+    font-family: Arial, Helvetica, sans-serif;
+    max-width: 1100px;
+    margin:20px auto;
+    background:#f5f7fb;
+    padding:18px;
+    color:#111;
+  }
+  .container{
+    background:#fff;
+    padding:18px;
+    border-radius:10px;
+    box-shadow:0 6px 20px rgba(9,30,66,0.08);
+  }
+  h1{ text-align:center; margin-bottom:6px; }
+  .display-sample{
+    font-family: "Courier New", monospace;
+    text-align:center;
+    background:#222;
+    color:#0f0;
+    padding:8px;
+    border-radius:6px;
+    display:inline-block;
+    margin-bottom:12px;
+  }
+  .inputs {
+    display:flex;
+    gap:12px;
+    align-items:end;
+    margin:12px 0 20px 0;
+    flex-wrap:wrap;
+  }
+  .inputs label{ display:block; font-weight:600; margin-bottom:6px; }
+  .field {
+    display:flex;
+    flex-direction:column;
+  }
+  input[type=number], select {
+    padding:8px;
+    border:1px solid #d7dbe0;
+    border-radius:6px;
+    width:180px;
+  }
+  button {
+    background:#007bff;
+    color:#fff;
+    padding:9px 16px;
+    border:0;
+    border-radius:6px;
+    cursor:pointer;
+    font-weight:700;
+  }
+  button:hover{ background:#0056b3; }
+  .error{ color:#b00020; margin-top:8px; }
+
+  #hasilArea{ margin-top:18px; }
+  .iterasi-box{
+    background:#fbfcfe;
+    border-left:4px solid #1e3a8a;
+    padding:14px 16px;
+    margin-bottom:12px;
+    border-radius:8px;
+    white-space:pre-line;
+    font-family: "Courier New", monospace;
+    font-size:14px;
+    color:#0b1220;
+  }
+  .converged{
+    background:#ecfdf5;
+    border:1px solid #bbf7d0;
+    padding:12px;
+    border-radius:8px;
+    font-weight:700;
+    text-align:center;
+    margin-top:8px;
+  }
+
+  @media (max-width:700px){
+    input[type=number], select{ width:140px; }
+  }
+
+  #downloadBtn {
+    background:#16a34a;
+    margin-left:10px;
+  }
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+</head>
+<body>
+<div class="container">
+  <h1>Kalkulator Metode Regula Falsi — Presisi 9 Desimal</h1>
+  <div class="display-sample">Fungsi: f(x) = x³ - 2x² + 3x - 5 | Toleransi: 0.01</div>
+
+  <div class="inputs">
+    <div class="field">
+      <label for="aInput">Nilai a</label>
+      <input id="aInput" type="number" step="any" value="1.2" />
+    </div>
+    <div class="field">
+      <label for="bInput">Nilai b</label>
+      <input id="bInput" type="number" step="any" value="2.1" />
+    </div>
+    <div class="field">
+      <label for="roundMode">Mode pembulatan</label>
+      <select id="roundMode">
+        <option value="ROUND_HALF_UP" selected>ROUND_HALF_UP</option>
+        <option value="ROUND_HALF_EVEN">ROUND_HALF_EVEN</option>
+        <option value="ROUND_HALF_DOWN">ROUND_HALF_DOWN</option>
+      </select>
+    </div>
+    <div style="align-self:center">
+      <button onclick="hitungRegulaFalsi()">Hitung</button>
+      <button id="downloadBtn" onclick="downloadExcel()">Download Excel</button>
+    </div>
+  </div>
+
+  <div id="error" class="error"></div>
+  <div id="hasilArea" style="display:none"></div>
+</div>
+
+<script>
+/* ---------------------------------------------
+   DATA EXCEL: akan diisi saat hitungRegulaFalsi dijalankan
+   --------------------------------------------- */
+let dataExcel = [];
+
+/* ---------------------------------------------
+   KONFIGURASI DAN FUNGSI MATEMATIKA
+   --------------------------------------------- */
+
+const ROUND_MAP = {
+  'ROUND_HALF_UP': Decimal.ROUND_HALF_UP,
+  'ROUND_HALF_EVEN': Decimal.ROUND_HALF_EVEN,
+  'ROUND_HALF_DOWN': Decimal.ROUND_HALF_DOWN
+};
+
+function setDecimalConfig(roundKey){
+  Decimal.set({ precision: 60, rounding: ROUND_MAP[roundKey] });
+}
+
+// Fungsi persamaan: f(x) = x³ - 2x² + 3x - 5 (TIDAK DIUBAH)
+function fDec(x){ 
+  return x.pow(3).minus(x.pow(2).times(2)).plus(x.times(3)).minus(5); 
+}
+
+function roundToSignificant(dec, sig=10){
+  if(!dec.isFinite()) return dec;
+  const absValue = dec.abs().toExponential(sig - 1);
+  return new Decimal(dec.isNeg() ? '-' + absValue : absValue);
+}
+
+function roundFixed(dec, places){
+  if(!dec.isFinite()) return dec;
+  return new Decimal(dec.toFixed(places));
+}
+
+function toDisplay(dec, places=9){
+  const D = new Decimal(dec);
+  let s = D.toFixed(places);
+  s = s.replace(/\.?0+$/, '');
+  if(s === '' || s === '-0') s = '0';
+  return s;
+}
+
+function toDisplayNoExp(dec, places=9){
+  return toDisplay(dec, places);
+}
+
+/* ---------------------------------------------
+   ALGORITMA REGULA FALSI
+   --------------------------------------------- */
+function hitungRegulaFalsi(){
+  const errEl = document.getElementById('error'); errEl.textContent = '';
+  const hasilArea = document.getElementById('hasilArea');
+  hasilArea.innerHTML = '';
+  hasilArea.style.display = 'none';
+
+  const aVal = document.getElementById('aInput').value;
+  const bVal = document.getElementById('bInput').value;
+  const roundKey = document.getElementById('roundMode').value;
+
+  const fixedDecimals = 9; 
+  // Toleransi error = 0.01 (sesuai contoh di gambar)
+  const e = new Decimal('0.01');
+
+  setDecimalConfig(roundKey);
+  const sig = 10;
+
+  if(String(aVal).trim()==='' || String(bVal).trim()===''){
+    errEl.textContent = 'Masukkan nilai a dan b.';
+    return;
+  }
+
+  let A, B;
+  try { A = new Decimal(aVal); B = new Decimal(bVal); }
+  catch(e){ errEl.textContent = 'Format angka tidak valid.'; return; }
+
+  A = roundToSignificant(A, sig);
+  B = roundToSignificant(B, sig);
+
+  let fa = roundFixed(fDec(A), fixedDecimals);
+  let fb = roundFixed(fDec(B), fixedDecimals);
+
+  // Validasi syarat regula falsi: f(a) * f(b) < 0
+  if(fa.times(fb).gt(0)){
+    errEl.textContent = 'f(a) dan f(b) harus berlawanan tanda.';
+    return;
+  }
+
+  // siapkan data Excel
+  dataExcel = [];
+  // header
+  dataExcel.push(["Iterasi", "a", "b", "c", "f(c)", "|f(c)|", "Keputusan"]);
+
+  hasilArea.style.display = 'block';
+
+  for(let i=1; i<=2000; i++){
+    // METODE REGULA FALSI: c = b - {f(b)(a-b)} / {f(a)-f(b)}
+    const numerator = fb.times(A.minus(B));
+    const denominator = fa.minus(fb);
+    const C = roundFixed(B.minus(numerator.dividedBy(denominator)), fixedDecimals);
+
+    // Hitung f(c)
+    const fc = roundFixed(fDec(C), fixedDecimals);
+    const absFc = fc.abs();
+
+    // Format tampilan untuk detail perhitungan
+    const sA = toDisplay(A, fixedDecimals);
+    const sB = toDisplay(B, fixedDecimals);
+    const sC = toDisplay(C, fixedDecimals);
+    const sFa = toDisplay(fa, fixedDecimals);
+    const sFb = toDisplay(fb, fixedDecimals);
+    const sFc = toDisplay(fc, fixedDecimals);
+    const sAbsFc = toDisplay(absFc, fixedDecimals);
+    const sNumerator = toDisplay(numerator, fixedDecimals);
+    const sDenominator = toDisplay(denominator, fixedDecimals);
+
+    // Buat teks detail perhitungan
+    const formulaLine1 = `c = b - {f(b)(a - b)} / {f(a) - f(b)}`;
+    const formulaLine2 = `c = ${sB} - {(${sFb})(${sA} - ${sB})} / {(${sFa}) - (${sFb})}`;
+    const formulaLine3 = `c = ${sB} - {(${sFb})(${toDisplay(A.minus(B), fixedDecimals)})} / {${toDisplay(fa.minus(fb), fixedDecimals)}}`;
+    const formulaLine4 = `c = ${sB} - {${sNumerator}} / {${sDenominator}}`;
+    const formulaLine5 = `c = ${sB} - ${toDisplay(numerator.dividedBy(denominator), fixedDecimals)}`;
+    const formulaLine6 = `c = ${sC}`;
+
+    const fcLine = `f(c) = f(${sC}) = ${sFc}`;
+    const absFcLine = `|f(c)| = |${sFc}| = ${sAbsFc}`;
+    const toleranceCheck = absFc.lte(e) ? `<= ${toDisplay(e, 2)} (KONVERGEN)` : `> ${toDisplay(e, 2)} (LANJUT ITERASI)`;
+    const toleranceLine = `|f(c)| ${toleranceCheck}`;
+
+    // Tentukan keputusan untuk interval berikutnya
+    const product = fa.times(fc);
+    let keputusan;
+    if (product.lt(0)) {
+      keputusan = `f(a) × f(c) = (${sFa}) × (${sFc}) = ${toDisplay(product, fixedDecimals)} < 0 → b = c`;
+    } else {
+      keputusan = `f(a) × f(c) = (${sFa}) × (${sFc}) = ${toDisplay(product, fixedDecimals)} > 0 → a = c`;
+    }
+
+    const iterText =
+`Iterasi ke-${i}
+
+${formulaLine1}
+${formulaLine2}
+${formulaLine3}
+${formulaLine4}
+${formulaLine5}
+${formulaLine6}
+
+${fcLine}
+${absFcLine}
+${toleranceLine}
+
+${keputusan}
+---------------------------------`;
+
+    const div = document.createElement('div');
+    div.className = 'iterasi-box';
+    div.textContent = iterText;
+    hasilArea.appendChild(div);
+
+    // tambahkan baris ke dataExcel
+    dataExcel.push([
+      i,
+      sA,
+      sB,
+      sC,
+      sFc,
+      sAbsFc,
+      keputusan.split('→')[1].trim()
+    ]);
+
+    // Cek konvergensi: |f(c)| <= e
+    if(absFc.lte(e)){
+      const endDiv = document.createElement('div');
+      endDiv.className = 'converged';
+      const approxRoot = toDisplay(C, fixedDecimals);
+      endDiv.textContent = `KONVERGENSI — akar ≈ ${approxRoot} (iterasi ${i}) |f(c)| = ${sAbsFc} <= ${toDisplay(e, 2)}`;
+      hasilArea.appendChild(endDiv);
+      
+      // tambahkan baris konvergensi ke Excel juga
+      dataExcel.push(["KONVERGENSI", "", "", approxRoot, sFc, sAbsFc, `iterasi ${i}`]);
+      break;
+    }
+
+    // Update interval untuk iterasi berikutnya
+    if (fa.times(fc).lt(0)) {
+      B = C;
+      fb = fc;
+    } else {
+      A = C;
+      fa = fc;
+    }
+  }
+}
+
+/* ---------------- EXCEL EXPORT ---------------- */
+function downloadExcel() {
+  if (!dataExcel || dataExcel.length <= 1) {
+    alert("Silakan hitung terlebih dahulu sebelum mendownload Excel.");
+    return;
+  }
+
+  // Buat worksheet dan workbook
+  const ws = XLSX.utils.aoa_to_sheet(dataExcel);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "RegulaFalsi");
+
+  // Set lebar kolom (opsional, agar terlihat rapi)
+  const wscols = [
+    { wpx: 60 },  // Iterasi
+    { wpx: 110 }, // a
+    { wpx: 110 }, // b
+    { wpx: 110 }, // c
+    { wpx: 120 }, // f(c)
+    { wpx: 100 }, // |f(c)|
+    { wpx: 180 }  // keputusan
+  ];
+  ws['!cols'] = wscols;
+
+  // Simpan file
+  XLSX.writeFile(wb, "hasil_regula_falsi.xlsx");
+}
+</script>
+</body>
+</html>

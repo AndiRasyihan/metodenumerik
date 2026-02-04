@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Kalkulator Metode Newton-Raphson (Lengkap f'(b))</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+  body{ font-family: Arial, sans-serif; max-width: 1100px; margin:20px auto; background:#f5f7fb; padding:18px; color:#111; }
+  .container{ background:#fff; padding:18px; border-radius:10px; box-shadow:0 6px 20px rgba(9,30,66,0.08); }
+  h1{ text-align:center; margin-bottom:6px; }
+  .display-sample{ font-family: "Courier New", monospace; text-align:center; background:#222; color:#ff9800; padding:8px; border-radius:6px; display:inline-block; margin-bottom:12px; }
+  .inputs { display:flex; gap:12px; align-items:end; margin:12px 0 20px 0; flex-wrap:wrap; }
+  .inputs label{ display:block; font-weight:600; margin-bottom:6px; }
+  input[type=number], select { padding:8px; border:1px solid #d7dbe0; border-radius:6px; width:180px; }
+  button { background:#007bff; color:#fff; padding:9px 16px; border:0; border-radius:6px; cursor:pointer; font-weight:700; }
+  button:hover{ background:#0056b3; }
+  .error{ color:#b00020; margin-top:8px; }
+  #hasilArea{ margin-top:18px; }
+  /* Mengubah warna border menjadi orange */
+  .iterasi-box{ background:#fbfcfe; border-left:4px solid #ff9800; padding:14px 16px; margin-bottom:12px; border-radius:8px; white-space:pre-line; font-family: "Courier New", monospace; font-size:14px; color:#0b1220; }
+  .converged{ background:#ecfdf5; border:1px solid #bbf7d0; padding:12px; border-radius:8px; font-weight:700; text-align:center; margin-top:8px; }
+  #downloadExcelBtn { background:#16a34a; margin-left:10px; }
+  #downloadPdfBtn { background:#b00020; margin-left:10px; }
+  .note { font-size: 0.9em; color: #555; margin-top: 5px; }
+</style>
+</head>
+<body>
+<div class="container" id="contentToPrint">
+  <h1>Kalkulator Metode Newton-Raphson</h1>
+  <div class="display-sample">Persamaan: $f(x) = x^3 - 2x^2 + 3x - 5$ <span class="note">(Turunan: $f'(x) = 3x^2 - 4x + 3$)</span></div>
+
+  <div class="inputs">
+    <div style="display:flex; flex-direction:column">
+      <label>Nilai awal a (sebagai $x_i$)</label>
+      <input id="aInput" type="number" step="any" value="1.2" />
+    </div>
+    <div style="display:flex; flex-direction:column">
+      <label>Nilai (Diabaikan)</label>
+      <input id="bInput" type="number" step="any" value="2.1" disabled style="background:#eee;"/>
+    </div>
+    <div style="display:flex; flex-direction:column">
+      <label>Mode Pembulatan</label>
+      <select id="roundMode">
+        <option value="ROUND_HALF_UP" selected>ROUND_HALF_UP</option>
+        <option value="ROUND_HALF_EVEN">ROUND_HALF_EVEN</option>
+        <option value="ROUND_HALF_DOWN">ROUND_HALF_DOWN</option>
+      </select>
+    </div>
+    <div style="align-self:center">
+      <button onclick="hitungNewtonRaphsonAB()">Hitung</button>
+      <button id="downloadExcelBtn" onclick="downloadExcel()">Excel</button>
+      <button id="downloadPdfBtn" onclick="downloadPDF()">PDF</button>
+    </div>
+  </div>
+  <div id="error" class="error"></div>
+  <div id="hasilArea" style="display:none"></div>
+</div>
+
+<script>
+let dataExcel = [];
+
+const ROUND_MAP = {
+  'ROUND_HALF_UP': Decimal.ROUND_HALF_UP,
+  'ROUND_HALF_EVEN': Decimal.ROUND_HALF_EVEN,
+  'ROUND_HALF_DOWN': Decimal.ROUND_HALF_DOWN
+};
+
+function setDecimalConfig(roundKey){
+  Decimal.set({ precision: 60, rounding: ROUND_MAP[roundKey] });
+}
+
+// Persamaan f(x)
+function fDec(x){ 
+  return x.pow(3).minus(x.pow(2).times(2)).plus(x.times(3)).minus(5); 
+}
+
+// Turunan f'(x) = 3x^2 - 4x + 3
+function fPrimeDec(x){
+    return x.pow(2).times(3).minus(x.times(4)).plus(3);
+}
+
+function roundFixed(dec, places){
+  if(!dec.isFinite()) return dec;
+  return new Decimal(dec.toFixed(places));
+}
+
+function toDisplay(dec, places=9){
+  const D = new Decimal(dec);
+  let s = D.toFixed(places);
+  s = s.replace(/\.?0+$/, ''); 
+  if(s === '' || s === '-0') s = '0';
+  return s;
+}
+
+function hitungNewtonRaphsonAB(){
+  const errEl = document.getElementById('error'); errEl.textContent = '';
+  const hasilArea = document.getElementById('hasilArea');
+  hasilArea.innerHTML = '';
+  hasilArea.style.display = 'none';
+
+  const a_val = document.getElementById('aInput').value;
+  const roundKey = document.getElementById('roundMode').value;
+  const fixedDecimals = 9; 
+  const tol = new Decimal('1e-8'); 
+
+  setDecimalConfig(roundKey);
+
+  if(String(a_val).trim()===''){
+    errEl.textContent = 'Masukkan nilai awal a.'; return;
+  }
+
+  let A; 
+  try { A = new Decimal(a_val); }
+  catch(e){ errEl.textContent = 'Format angka tidak valid.'; return; }
+  
+  // Update header Excel untuk menyertakan f'(b)
+  dataExcel = [["Iterasi", "a ($x_i$)", "f(a)", "f'(a)", "b ($x_{i+1}$)", "f'(b)", "|f(b)|", "Ket"]];
+  hasilArea.style.display = 'block';
+
+  for(let i=1; i<=100; i++){
+    
+    // --- 1. Hitung komponen awal ---
+    const Fa = roundFixed(fDec(A), fixedDecimals);
+    const F_prime_a = roundFixed(fPrimeDec(A), fixedDecimals);
+
+    if(F_prime_a.isZero()){
+       hasilArea.innerHTML += `<div class="error">Error: f'(a) = 0 pada iterasi ${i}. Metode berhenti.</div>`; break;
+    }
+
+    // --- 2. Hitung b ---
+    const fraction_raw = Fa.dividedBy(F_prime_a);
+    const fraction_display = roundFixed(fraction_raw, fixedDecimals); 
+    const B = roundFixed(A.minus(fraction_display), fixedDecimals); 
+    
+    // --- 3. Hitung f(b) ---
+    const Fb = roundFixed(fDec(B), fixedDecimals);
+    const absFb = Fb.abs();
+
+    // --- 4. Hitung f'(b) (FITUR BARU) ---
+    // Rumus turunan: 3x^2 - 4x + 3
+    const F_prime_b = roundFixed(fPrimeDec(B), fixedDecimals);
+    
+    // Siapkan variabel display
+    const sA = toDisplay(A); 
+    const sFa = toDisplay(Fa); 
+    const sF_prime_a = toDisplay(F_prime_a); 
+    const sB = toDisplay(B);
+    const sFb = toDisplay(Fb);
+    const sAbsFb = toDisplay(absFb);
+    const sF_prime_b = toDisplay(F_prime_b);
+
+    // -- String Builder untuk Rumus b --
+    const nextBLine1 = `b = a - f(a) / f'(a)`;
+    const nextBLine2 = `  = ${sA} - ${sFa} / ${sF_prime_a}`;
+    const nextBLine3 = `  = ${sA} - ${toDisplay(fraction_display)}`;
+
+    // -- String Builder untuk f(b) --
+    // f(b) = b^3 - 2b^2 + 3b - 5
+    const comp_pow3 = roundFixed(B.pow(3), fixedDecimals);           
+    const comp_pow2_x2 = roundFixed(B.pow(2).times(2), fixedDecimals); 
+    const comp_x3 = roundFixed(B.times(3), fixedDecimals);             
+    const fcCalcLine = `= ${toDisplay(comp_pow3)} - ${toDisplay(comp_pow2_x2)} + ${toDisplay(comp_x3)} - 5`;
+
+    // -- String Builder untuk f'(b) (FITUR BARU) --
+    // f'(x) = 3x^2 - 4x + 3
+    const comp_prime_pow2_x3 = roundFixed(B.pow(2).times(3), fixedDecimals);
+    const comp_prime_x4 = roundFixed(B.times(4), fixedDecimals);
+    // Tampilan: 3(b)^2 - 4(b) + 3
+    const fpCalcLine = `= 3(${sB})² - 4(${sB}) + 3`;
+    const fpCalcLine2 = `= ${toDisplay(comp_prime_pow2_x3)} - ${toDisplay(comp_prime_x4)} + 3`;
+
+    const iterText =
+`Iterasi ke-${i}
+a = ${sA}
+f(a) = ${sFa}
+f'(a) = ${sF_prime_a}
+
+Rumus b:
+${nextBLine1}
+${nextBLine2}
+${nextBLine3}
+b = ${sB}
+
+Hitung f(b):
+f(b) = (${sB})³ - 2(${sB})² + 3(${sB}) - 5
+      ${fcCalcLine}
+      = ${sFb}
+
+Hitung f'(b):
+f'(b) = 3(${sB})² - 4(${sB}) + 3
+      ${fpCalcLine2}
+      = ${sF_prime_b}
+
+Cek Konvergensi:
+|f(b)| = ${sAbsFb} ${absFb.lte(tol) ? '≤' : '>'} 10⁻⁸
+
+${absFb.lte(tol) ? 'TARGET TERCAPAI' : `Karena belum, maka untuk iterasi berikutnya:\na = b (${sB})`}
+---------------------------------`;
+
+    const div = document.createElement('div');
+    div.className = 'iterasi-box';
+    div.textContent = iterText;
+    hasilArea.appendChild(div);
+
+    dataExcel.push([ i, sA, sFa, sF_prime_a, sB, sF_prime_b, sAbsFb, absFb.lte(tol) ? "Selesai" : "Lanjut" ]);
+
+    if(absFb.lte(tol)){
+      const endDiv = document.createElement('div');
+      endDiv.className = 'converged';
+      endDiv.textContent = `SELESAI — Akar ≈ ${sB} pada iterasi ke-${i}.`;
+      hasilArea.appendChild(endDiv);
+      dataExcel.push(["SELESAI", "", "", "", sB, sF_prime_b, sAbsFb, `iterasi ${i}`]);
+      break;
+    }
+
+    // Update A untuk iterasi selanjutnya
+    A = B;
+  }
+}
+
+function downloadExcel() {
+  if (!dataExcel || dataExcel.length <= 1) { alert("Hitung dulu."); return; }
+  const ws = XLSX.utils.aoa_to_sheet(dataExcel);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Newton Raphson");
+  XLSX.writeFile(wb, "hasil_newton_raphson_lengkap.xlsx");
+}
+
+function downloadPDF() {
+  if (document.getElementById('hasilArea').style.display === 'none' || dataExcel.length <= 1) {
+    alert("Silakan hitung terlebih dahulu sebelum mendownload PDF.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF('p', 'mm', 'a4');
+
+  const hasilArea = document.getElementById('hasilArea');
+  const items = hasilArea.querySelectorAll('.iterasi-box, .converged');
+
+  let y = 10;
+  const pageHeight = 297;
+  const margin = 10;
+  const contentWidth = 190;
+
+  const renderNext = (index) => {
+    if (index >= items.length) {
+      doc.save("hasil_newton_raphson_iterasi.pdf");
+      return;
+    }
+
+    html2canvas(items[index], { scale: 1 }).then((canvas) => {
+      const imgData = canvas.toDataURL("image/jpeg", 0.6); // Sedikit kompresi
+      const imgWidth = contentWidth;
+      const imgHeight = canvas.height * imgWidth / canvas.width;
+
+      if (y + imgHeight > pageHeight - margin) {
+        doc.addPage();
+        y = 10;
+      }
+
+      doc.addImage(imgData, 'JPEG', margin, y, imgWidth, imgHeight);
+      y += imgHeight + 8;
+
+      renderNext(index + 1);
+    });
+  };
+
+  renderNext(0);
+}
+</script>
+</body>
+</html>
