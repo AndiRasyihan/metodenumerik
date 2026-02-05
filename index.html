@@ -341,7 +341,7 @@
         downloadArea.style.display = "block";
       }
 
-      // --- 1. LOGIKA BISEKSI ---
+      // --- 1. LOGIKA BISEKSI (DIPERBAIKI) ---
       function runBiseksi(startA, startB) {
         const outputDiv = document.getElementById("hasilBiseksi");
         const errDiv = document.getElementById("errorBiseksi");
@@ -361,7 +361,7 @@
 
         if (fa.times(fb).gt(0)) {
           errDiv.textContent = "Error: f(a) dan f(b) harus berlawanan tanda.";
-          excelDataBiseksi = []; // Clear data on error
+          excelDataBiseksi = [];
           return;
         }
 
@@ -369,7 +369,11 @@
           const C = strictRound(A.plus(B).dividedBy(2));
           const fC_Obj = calculateFStrict(C);
           const fc = fC_Obj.res;
-          const product = strictRound(fa.times(fc));
+
+          // PERBAIKAN: Hitung raw product untuk logika, strict product untuk display
+          const rawProduct = fa.times(fc);
+          const product = strictRound(rawProduct);
+
           const jarak = A.minus(B).abs();
 
           const sA = toDisplay(A);
@@ -386,9 +390,11 @@
           const jarakLine = `|a - b| = |${sA} - ${sB}| = ${sJarak} ${compTol}`;
 
           let kondisiText = "";
-          if (product.lt(0)) {
+          // LOGIKA IF MENGGUNAKAN RAW VALUE
+          if (rawProduct.lt(0)) {
             kondisiText = `f(a) * f(c) < 0 (<span style="color:green">Negatif</span>) → b = c`;
           } else {
+            // Note: Walaupun tampilan sProduct mungkin "0", logika tetap menganggapnya positif jika raw > 0
             kondisiText = `f(a) * f(c) > 0 (<span style="color:red">Positif</span>) → a = c`;
           }
 
@@ -409,6 +415,7 @@ ${kondisiText}
           div.innerHTML = iterText;
           outputDiv.appendChild(div);
 
+          // LOGIKA UPDATE JUGA MENGGUNAKAN RAW VALUE
           excelDataBiseksi.push([
             i,
             sA,
@@ -416,7 +423,7 @@ ${kondisiText}
             sC,
             sFc,
             sJarak,
-            product.lt(0) ? "b = c" : "a = c",
+            rawProduct.lt(0) ? "b = c" : "a = c",
           ]);
 
           if (jarak.lte(tol)) {
@@ -436,7 +443,7 @@ ${kondisiText}
             break;
           }
 
-          if (product.lt(0)) {
+          if (rawProduct.lt(0)) {
             B = C;
             fb = fc;
           } else {
