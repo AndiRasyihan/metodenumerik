@@ -1,289 +1,720 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Generator Grafik Metode Numerik (Final Version)</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
-<style>
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f4f6f8; padding: 20px; color: #333; }
-    .container { max-width: 1000px; margin: 0 auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
-    h1 { text-align: center; color: #2c3e50; margin-bottom: 5px; }
-    
-    .inputs { 
-        display: flex; gap: 15px; justify-content: center; align-items: center; 
-        margin: 20px 0; background: #eef2f7; padding: 20px; border-radius: 8px; border: 1px solid #dce1e6;
-    }
-    input { padding: 10px; width: 100px; text-align: center; border: 1px solid #ccc; border-radius: 5px; font-size: 16px; }
-    
-    button.generate-btn { 
-        padding: 12px 25px; background: #007bff; color: white; border: none; 
-        cursor: pointer; border-radius: 5px; font-weight: bold; font-size: 15px;
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generator Grafik Metode Numerik (Custom Data)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: #f4f6f8;
+        padding: 20px;
+        color: #333;
+      }
+      .container {
+        max-width: 1100px;
+        margin: 0 auto;
+        background: white;
+        padding: 25px;
+        border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+      }
+      h1 {
+        text-align: center;
+        color: #1e3a8a;
+        margin-bottom: 5px;
+      }
+
+      .inputs {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        align-items: flex-end;
+        flex-wrap: wrap;
+        margin: 20px 0;
+        background: #eef2f7;
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid #dce1e6;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+      }
+      .field label {
+        font-weight: 600;
+        font-size: 0.9em;
+        margin-bottom: 5px;
+      }
+
+      input,
+      select {
+        padding: 10px;
+        width: 140px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        font-size: 14px;
+      }
+
+      button.generate-btn {
+        padding: 12px 25px;
+        background: #007bff;
+        color: white;
+        border: none;
+        cursor: pointer;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 15px;
         transition: background 0.2s;
-    }
-    button.generate-btn:hover { background: #0056b3; }
+        height: 42px;
+      }
+      button.generate-btn:hover {
+        background: #0056b3;
+      }
 
-    .chart-container { margin-bottom: 40px; padding: 20px; border: 1px solid #e1e4e8; border-radius: 10px; background: #fff; }
-    
-    /* Header Grafik + Tombol Download */
-    .chart-header {
-        display: flex; justify-content: space-between; align-items: center;
-        margin-bottom: 15px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px;
-    }
-    .chart-header h3 { margin: 0; color: #444; }
-    
-    .download-btn {
-        background: #28a745; color: white; border: none; padding: 8px 15px;
-        border-radius: 5px; cursor: pointer; font-size: 13px; font-weight: 600;
+      .chart-container {
+        margin-bottom: 40px;
+        padding: 20px;
+        border: 1px solid #e1e4e8;
+        border-radius: 10px;
+        background: #fff;
+      }
+
+      .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        border-bottom: 2px solid #f0f0f0;
+        padding-bottom: 10px;
+      }
+      .chart-header h3 {
+        margin: 0;
+        color: #444;
+      }
+
+      .download-btn {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: 600;
         transition: background 0.2s;
-    }
-    .download-btn:hover { background: #218838; }
+      }
+      .download-btn:hover {
+        background: #218838;
+      }
 
-    canvas { max-height: 400px; background: #fff; } 
-    .summary { text-align: center; font-size: 0.95em; color: #666; margin-bottom: 10px; font-style: italic; }
-</style>
-</head>
-<body>
+      canvas {
+        max-height: 450px;
+        background: #fff;
+      }
+      .summary {
+        text-align: center;
+        font-size: 0.95em;
+        color: #666;
+        margin-bottom: 10px;
+        font-style: italic;
+      }
 
-<div class="container">
-    <h1>Grafik Konvergensi Metode Numerik</h1>
-    <div style="text-align:center; color:#666; margin-bottom:10px;">
-        Fungsi: <code>f(x) = x³ - 2x² + 3x - 5</code>
-    </div>
+      /* Legend Hint */
+      .legend-hint {
+        font-size: 0.8em;
+        color: #888;
+        text-align: center;
+        margin-bottom: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Grafik Konvergensi (Custom Data)</h1>
+      <div style="text-align: center; color: #666; margin-bottom: 10px">
+        Fungsi: <code>f(x) = x³ - 2x² + 3x - 5</code><br />
+        <small
+          >Hover pada titik grafik untuk melihat detail nilai (a, b, c, f(x),
+          dll)</small
+        >
+      </div>
 
-    <div class="inputs">
-        <div>
-            <label style="font-weight:bold; display:block; font-size:0.9em;">Nilai a</label>
-            <input type="number" id="inpA" value="1.2">
+      <div class="inputs">
+        <div class="field">
+          <label>Nilai A</label>
+          <input type="number" id="inpA" value="-2" />
         </div>
-        <div>
-            <label style="font-weight:bold; display:block; font-size:0.9em;">Nilai b</label>
-            <input type="number" id="inpB" value="2.1">
+        <div class="field">
+          <label>Nilai B</label>
+          <input type="number" id="inpB" value="2" />
         </div>
-        <div style="align-self:end;">
-            <button class="generate-btn" onclick="generateAllGraphs()">GENERATE GRAPH</button>
+        <div class="field">
+          <label>Mode Pembulatan</label>
+          <select id="roundMode">
+            <option value="ROUND_HALF_UP" selected>ROUND_HALF_UP</option>
+            <option value="ROUND_HALF_EVEN">ROUND_HALF_EVEN</option>
+            <option value="ROUND_HALF_DOWN">ROUND_HALF_DOWN</option>
+          </select>
         </div>
-    </div>
+        <div style="align-self: end">
+          <button class="generate-btn" onclick="generateAllGraphs()">
+            GENERATE GRAPH
+          </button>
+        </div>
+      </div>
 
-    <div class="chart-container">
+      <div class="chart-container">
         <div class="chart-header">
-            <h3>1. Metode Biseksi</h3>
-            <button class="download-btn" onclick="downloadChart('chartBis', 'Biseksi_HD.png')">⬇ Download HD</button>
+          <h3>1. Metode Biseksi</h3>
+          <button
+            class="download-btn"
+            onclick="downloadChart('chartBis', 'Biseksi_Lengkap.png')"
+          >
+            ⬇ Download HD
+          </button>
         </div>
+        <div class="legend-hint">Data: e, a, f(a), b, f(b), c, f(c)</div>
         <div id="infoBis" class="summary"></div>
         <canvas id="chartBis"></canvas>
-    </div>
+      </div>
 
-    <div class="chart-container">
+      <div class="chart-container">
         <div class="chart-header">
-            <h3>2. Metode Regula Falsi</h3>
-            <button class="download-btn" onclick="downloadChart('chartRF', 'RegulaFalsi_HD.png')">⬇ Download HD</button>
+          <h3>2. Metode Regula Falsi</h3>
+          <button
+            class="download-btn"
+            onclick="downloadChart('chartRF', 'RegulaFalsi_Lengkap.png')"
+          >
+            ⬇ Download HD
+          </button>
         </div>
+        <div class="legend-hint">Data: e, c, f(a), f(b), f(c)</div>
         <div id="infoRF" class="summary"></div>
         <canvas id="chartRF"></canvas>
-    </div>
+      </div>
 
-    <div class="chart-container">
+      <div class="chart-container">
         <div class="chart-header">
-            <h3>3. Metode Secant</h3>
-            <button class="download-btn" onclick="downloadChart('chartSec', 'Secant_HD.png')">⬇ Download HD</button>
+          <h3>3. Metode Newton-Raphson</h3>
+          <button
+            class="download-btn"
+            onclick="downloadChart('chartNR', 'NewtonRaphson_Lengkap.png')"
+          >
+            ⬇ Download HD
+          </button>
         </div>
-        <div id="infoSec" class="summary"></div>
-        <canvas id="chartSec"></canvas>
-    </div>
-
-    <div class="chart-container">
-        <div class="chart-header">
-            <h3>4. Metode Newton-Raphson</h3>
-            <button class="download-btn" onclick="downloadChart('chartNR', 'NewtonRaphson_HD.png')">⬇ Download HD</button>
-        </div>
-        <div style="font-size:0.8em; text-align:center; color:#555;">(Variabel: a = nilai awal, b = nilai baru)</div>
+        <div class="legend-hint">Data: e, b, f(b)</div>
         <div id="infoNR" class="summary"></div>
         <canvas id="chartNR"></canvas>
+      </div>
+
+      <div class="chart-container">
+        <div class="chart-header">
+          <h3>4. Metode Secant</h3>
+          <button
+            class="download-btn"
+            onclick="downloadChart('chartSec', 'Secant_Lengkap.png')"
+          >
+            ⬇ Download HD
+          </button>
+        </div>
+        <div class="legend-hint">Data: e, c, f(c)</div>
+        <div id="infoSec" class="summary"></div>
+        <canvas id="chartSec"></canvas>
+      </div>
     </div>
-</div>
 
-<script>
-// Setup Decimal
-Decimal.set({ precision: 20 });
-Chart.defaults.font.family = "'Segoe UI', 'Helvetica', 'Arial', sans-serif";
+    <script>
+      // --- KONFIGURASI SHARED DARI INDEX.HTML ---
+      const ROUND_MAP = {
+        ROUND_HALF_UP: Decimal.ROUND_HALF_UP,
+        ROUND_HALF_EVEN: Decimal.ROUND_HALF_EVEN,
+        ROUND_HALF_DOWN: Decimal.ROUND_HALF_DOWN,
+      };
 
-function f(x) { 
-    let D = new Decimal(x);
-    return D.pow(3).minus(D.pow(2).times(2)).plus(D.times(3)).minus(5);
-}
-function fPrime(x) {
-    let D = new Decimal(x);
-    return D.pow(2).times(3).minus(D.times(4)).plus(3);
-}
+      function setDecimalConfig(roundKey) {
+        Decimal.set({ precision: 60, rounding: ROUND_MAP[roundKey] });
+      }
 
-let charts = {};
+      function strictRound(decVal) {
+        if (!decVal.isFinite()) return decVal;
+        return new Decimal(decVal.toFixed(9));
+      }
 
-// --- FUNGSI DOWNLOAD HD ---
-function downloadChart(canvasId, filename) {
-    const canvas = document.getElementById(canvasId);
-    if(!charts[canvasId]) {
-        alert("Silakan klik tombol GENERATE terlebih dahulu.");
-        return;
-    }
-    const link = document.createElement('a');
-    link.download = filename;
-    link.href = canvas.toDataURL('image/png', 1.0);
-    link.click();
-}
+      function calculateFStrict(valDec) {
+        // f(x) = x^3 - 2x^2 + 3x - 5
+        const term1 = strictRound(valDec.pow(3));
+        const term2 = strictRound(valDec.pow(2).times(2));
+        const term3 = strictRound(valDec.times(3));
+        const res = term1.minus(term2).plus(term3).minus(5);
+        return res;
+      }
 
-function generateAllGraphs() {
-    const aVal = parseFloat(document.getElementById('inpA').value);
-    const bVal = parseFloat(document.getElementById('inpB').value);
-    
-    runBiseksi(aVal, bVal);
-    runRegulaFalsi(aVal, bVal);
-    runSecant(aVal, bVal);
-    runNewton(aVal);
-}
+      Chart.defaults.font.family =
+        "'Segoe UI', 'Helvetica', 'Arial', sans-serif";
+      let charts = {};
 
-// --- LOGIKA RENDER CHART (MODIFIKASI LABEL DINAMIS) ---
-function renderChart(canvasId, label, labels, dataError, dataRoot, dataFc, rootSymbol) {
-    const ctx = document.getElementById(canvasId).getContext('2d');
-    if (charts[canvasId]) charts[canvasId].destroy();
+      function generateAllGraphs() {
+        const aVal = document.getElementById("inpA").value;
+        const bVal = document.getElementById("inpB").value;
+        const roundKey = document.getElementById("roundMode").value;
 
-    // Default symbol 'c' jika tidak ditentukan
-    const sym = rootSymbol || 'c'; 
-    const rootLabel = `Nilai Akar (${sym})`;
-    const axisLabel = `Nilai ${sym.toUpperCase()}`;
+        setDecimalConfig(roundKey);
 
-    // Plugin Background Putih
-    const whiteBackgroundPlugin = {
-        id: 'custom_canvas_background_color',
-        beforeDraw: (chart) => {
-            const ctx = chart.canvas.getContext('2d');
+        let A, B;
+        try {
+          A = new Decimal(aVal);
+          B = new Decimal(bVal);
+        } catch (e) {
+          alert("Input angka tidak valid");
+          return;
+        }
+
+        runBiseksi(A, B);
+        runRegulaFalsi(A, B);
+        runNewton(A);
+        runSecant(A, B);
+      }
+
+      // --- 1. BISEKSI (Req: e, a, f(a), b, f(b), c, f(c)) ---
+      function runBiseksi(startA, startB) {
+        let A = strictRound(startA);
+        let B = strictRound(startB);
+        const tol = new Decimal("1e-8");
+
+        // Arrays untuk menyimpan semua data request
+        let labels = [];
+        let d_e = [],
+          d_a = [],
+          d_fa = [],
+          d_b = [],
+          d_fb = [],
+          d_c = [],
+          d_fc = [];
+
+        let fa = calculateFStrict(A);
+        let fb = calculateFStrict(B);
+
+        if (fa.times(fb).gt(0)) {
+          document.getElementById("infoBis").innerText =
+            "Error: f(a) dan f(b) tidak berlawanan tanda.";
+          if (charts["chartBis"]) charts["chartBis"].destroy();
+          return;
+        }
+
+        for (let i = 1; i <= 50; i++) {
+          const C = strictRound(A.plus(B).dividedBy(2));
+          const fc = calculateFStrict(C);
+          const error = A.minus(B).abs();
+
+          labels.push(i);
+          // Push semua data
+          d_e.push(error.toNumber());
+          d_a.push(A.toNumber());
+          d_fa.push(fa.toNumber());
+          d_b.push(B.toNumber());
+          d_fb.push(fb.toNumber());
+          d_c.push(C.toNumber());
+          d_fc.push(fc.toNumber());
+
+          if (error.lte(tol)) break;
+
+          const rawProduct = fa.times(fc);
+          if (rawProduct.lt(0)) {
+            B = C;
+            fb = fc;
+          } else {
+            A = C;
+            fa = fc;
+          }
+        }
+
+        document.getElementById("infoBis").innerText =
+          `Selesai dalam ${labels.length} iterasi.`;
+
+        // Buat konfigurasi dataset sesuai urutan
+        const datasets = [
+          {
+            label: "e (Error)",
+            data: d_e,
+            color: "blue",
+            yAxis: "y_log",
+            show: true,
+          },
+          {
+            label: "f(a)",
+            data: d_fa,
+            color: "purple",
+            yAxis: "y_linear",
+            show: true,
+            dash: true,
+          },
+          {
+            label: "f(b)",
+            data: d_fb,
+            color: "orange",
+            yAxis: "y_linear",
+            show: true,
+            dash: true,
+          },
+          {
+            label: "c (Akar)",
+            data: d_c,
+            color: "green",
+            yAxis: "y_linear",
+            show: true,
+          },
+          {
+            label: "f(c)",
+            data: d_fc,
+            color: "red",
+            yAxis: "y_linear",
+            show: true,
+            dash: true,
+          },
+        ];
+
+        renderComplexChart("chartBis", "Biseksi", labels, datasets);
+      }
+
+      // --- 2. REGULA FALSI (Req: e, c, f(a), f(b), f(c)) ---
+      function runRegulaFalsi(startA, startB) {
+        let A = strictRound(startA);
+        let B = strictRound(startB);
+        const tol = new Decimal("1e-8");
+
+        let labels = [];
+        let d_e = [],
+          d_c = [],
+          d_fa = [],
+          d_fb = [],
+          d_fc = [];
+
+        let fa = calculateFStrict(A);
+        let fb = calculateFStrict(B);
+
+        if (fa.times(fb).gt(0)) {
+          document.getElementById("infoRF").innerText =
+            "Error: f(a) dan f(b) tidak berlawanan tanda.";
+          if (charts["chartRF"]) charts["chartRF"].destroy();
+          return;
+        }
+
+        for (let i = 1; i <= 50; i++) {
+          const denom = fa.minus(fb);
+          if (denom.isZero()) break;
+
+          const diff_ab = A.minus(B);
+          const numer = strictRound(fb.times(diff_ab));
+          const fraction = strictRound(numer.dividedBy(denom));
+          let C = strictRound(B.minus(fraction));
+          const fc = calculateFStrict(C);
+
+          // Error di Regula Falsi biasanya |f(c)| atau selisih C (disini kita pakai |f(c)| sebagai indikator utama konvergensi atau bisa pakai distance,
+          // tapi sesuai request "e", kita pakai |f(c)| karena distance sering stuck di RF)
+          // UPDATE: Agar konsisten dengan kalkulator tabel, e biasanya selisih C_baru - C_lama, tapi karena ini iterasi 1 arah,
+          // kita pakai e = |f(c)| yang mendekati 0.
+          const error = fc.abs();
+
+          labels.push(i);
+          d_e.push(error.toNumber());
+          d_c.push(C.toNumber());
+          d_fa.push(fa.toNumber());
+          d_fb.push(fb.toNumber());
+          d_fc.push(fc.toNumber());
+
+          if (error.lte(tol)) break;
+
+          const product = strictRound(fa.times(fc));
+          if (product.lt(0)) {
+            B = C;
+            fb = fc;
+          } else {
+            A = C;
+            fa = fc;
+          }
+        }
+        document.getElementById("infoRF").innerText =
+          `Selesai dalam ${labels.length} iterasi.`;
+
+        const datasets = [
+          {
+            label: "e (Error/|f(c)|)",
+            data: d_e,
+            color: "blue",
+            yAxis: "y_log",
+            show: true,
+          },
+          {
+            label: "c (Akar)",
+            data: d_c,
+            color: "green",
+            yAxis: "y_linear",
+            show: true,
+          },
+          {
+            label: "f(a)",
+            data: d_fa,
+            color: "purple",
+            yAxis: "y_linear",
+            show: true,
+            dash: true,
+          },
+          {
+            label: "f(b)",
+            data: d_fb,
+            color: "orange",
+            yAxis: "y_linear",
+            show: true,
+            dash: true,
+          },
+          {
+            label: "f(c)",
+            data: d_fc,
+            color: "red",
+            yAxis: "y_linear",
+            show: true,
+            dash: true,
+          },
+        ];
+
+        renderComplexChart("chartRF", "Regula Falsi", labels, datasets);
+      }
+
+      // --- 3. NEWTON RAPHSON (Req: e, b, f(b)) ---
+      // Catatan: Di kode Anda sebelumnya 'b' adalah nilai baru. Kita ikuti itu.
+      function runNewton(startA) {
+        let A = strictRound(startA);
+        const tol = new Decimal("1e-8");
+
+        let labels = [];
+        let d_e = [],
+          d_b = [],
+          d_fb = [];
+
+        for (let i = 1; i <= 50; i++) {
+          const Fa = calculateFStrict(A);
+          const p_term1_a = strictRound(A.pow(2).times(3));
+          const p_term2_a = strictRound(A.times(4));
+          const F_prime_a = p_term1_a.minus(p_term2_a).plus(3);
+
+          if (F_prime_a.isZero()) break;
+
+          const fraction = strictRound(Fa.dividedBy(F_prime_a));
+          let B = strictRound(A.minus(fraction)); // B adalah Nilai Baru
+
+          const Fb = calculateFStrict(B);
+          const error = fraction.abs(); // Error step
+
+          labels.push(i);
+          d_e.push(error.toNumber());
+          d_b.push(B.toNumber());
+          d_fb.push(Fb.toNumber());
+
+          if (Fb.abs().lte(tol)) break;
+          A = B;
+        }
+        document.getElementById("infoNR").innerText =
+          `Selesai dalam ${labels.length} iterasi.`;
+
+        const datasets = [
+          {
+            label: "e (Error)",
+            data: d_e,
+            color: "blue",
+            yAxis: "y_log",
+            show: true,
+          },
+          {
+            label: "b (Akar Baru)",
+            data: d_b,
+            color: "green",
+            yAxis: "y_linear",
+            show: true,
+          },
+          {
+            label: "f(b)",
+            data: d_fb,
+            color: "red",
+            yAxis: "y_linear",
+            show: true,
+            dash: true,
+          },
+        ];
+
+        renderComplexChart("chartNR", "Newton Raphson", labels, datasets);
+      }
+
+      // --- 4. SECANT (Req: e, c, f(c)) ---
+      function runSecant(startA, startB) {
+        let A = strictRound(startA);
+        let B = strictRound(startB);
+        const tol = new Decimal("1e-8");
+
+        let labels = [];
+        let d_e = [],
+          d_c = [],
+          d_fc = [];
+
+        let fa = calculateFStrict(A);
+        let fb = calculateFStrict(B);
+
+        for (let i = 1; i <= 50; i++) {
+          const diff_b_a = B.minus(A);
+          const diff_fb_fa = fb.minus(fa);
+
+          if (diff_fb_fa.isZero()) break;
+
+          const numerator = strictRound(fb.times(diff_b_a));
+          const fraction = strictRound(numerator.dividedBy(diff_fb_fa));
+          let C = strictRound(B.minus(fraction));
+
+          const fc = calculateFStrict(C);
+          const error = fraction.abs();
+
+          labels.push(i);
+          d_e.push(error.toNumber());
+          d_c.push(C.toNumber());
+          d_fc.push(fc.toNumber());
+
+          if (fc.abs().lte(tol)) break;
+
+          A = B;
+          B = C;
+          fa = fb;
+          fb = fc;
+        }
+        document.getElementById("infoSec").innerText =
+          `Selesai dalam ${labels.length} iterasi.`;
+
+        const datasets = [
+          {
+            label: "e (Error)",
+            data: d_e,
+            color: "blue",
+            yAxis: "y_log",
+            show: true,
+          },
+          {
+            label: "c (Akar)",
+            data: d_c,
+            color: "green",
+            yAxis: "y_linear",
+            show: true,
+          },
+          {
+            label: "f(c)",
+            data: d_fc,
+            color: "red",
+            yAxis: "y_linear",
+            show: true,
+            dash: true,
+          },
+        ];
+
+        renderComplexChart("chartSec", "Secant", labels, datasets);
+      }
+
+      // --- UNIVERSAL CHART RENDERER ---
+      function renderComplexChart(canvasId, title, labels, customDatasets) {
+        const ctx = document.getElementById(canvasId).getContext("2d");
+        if (charts[canvasId]) charts[canvasId].destroy();
+
+        // Mapping customDatasets ke format Chart.js
+        const formattedDatasets = customDatasets.map((ds) => {
+          return {
+            label: ds.label,
+            data: ds.data,
+            borderColor: ds.color,
+            backgroundColor: ds.color,
+            yAxisID: ds.yAxis, // 'y_log' atau 'y_linear'
+            borderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            fill: false,
+            tension: 0.1,
+            hidden: !ds.show, // Kontrol visibilitas default
+            borderDash: ds.dash ? [5, 5] : [],
+          };
+        });
+
+        const whiteBackgroundPlugin = {
+          id: "custom_canvas_background_color",
+          beforeDraw: (chart) => {
+            const ctx = chart.canvas.getContext("2d");
             ctx.save();
-            ctx.globalCompositeOperation = 'destination-over';
-            ctx.fillStyle = 'white';
+            ctx.globalCompositeOperation = "destination-over";
+            ctx.fillStyle = "white";
             ctx.fillRect(0, 0, chart.width, chart.height);
             ctx.restore();
-        }
-    };
+          },
+        };
 
-    charts[canvasId] = new Chart(ctx, {
-        type: 'line',
-        data: {
+        charts[canvasId] = new Chart(ctx, {
+          type: "line",
+          data: {
             labels: labels,
-            datasets: [
-                {
-                    label: 'Nilai Error (e)',
-                    data: dataError,
-                    borderColor: 'blue', backgroundColor: 'blue',
-                    yAxisID: 'y_log', borderWidth: 2, pointRadius: 3, fill: false
-                },
-                {
-                    label: rootLabel, // Label Dinamis (c atau b)
-                    data: dataRoot,
-                    borderColor: 'green', backgroundColor: 'green',
-                    yAxisID: 'y_linear', borderWidth: 2, pointRadius: 3, fill: false
-                },
-                {
-                    label: `|f(${sym})|`, // Label Dinamis
-                    data: dataFc,
-                    borderColor: 'red', backgroundColor: 'red',
-                    yAxisID: 'y_log', borderDash: [5, 5], borderWidth: 1, pointRadius: 2, fill: false
-                }
-            ]
-        },
-        options: {
+            datasets: formattedDatasets,
+          },
+          options: {
             responsive: true,
-            interaction: { mode: 'index', intersect: false },
+            interaction: { mode: "index", intersect: false },
             scales: {
-                x: { title: { display: true, text: 'Iterasi Ke-' } },
-                y_log: {
-                    type: 'logarithmic', position: 'left',
-                    title: { display: true, text: 'Nilai Error (e)' }, min: 1e-9
-                },
-                y_linear: {
-                    type: 'linear', position: 'right',
-                    title: { display: true, text: axisLabel }, // Sumbu kanan dinamis
-                    grid: { drawOnChartArea: false }
-                }
+              x: { title: { display: true, text: "Iterasi Ke-" } },
+              y_log: {
+                type: "logarithmic",
+                position: "left",
+                title: { display: true, text: "Log Scale (Error)" },
+                min: 1e-10,
+                grid: { color: "rgba(0,0,0,0.05)" },
+              },
+              y_linear: {
+                type: "linear",
+                position: "right",
+                title: { display: true, text: "Linear Scale (Nilai)" },
+                grid: { drawOnChartArea: false },
+              },
             },
-            plugins: { title: { display: true, text: 'Metode: ' + label } }
-        },
-        plugins: [whiteBackgroundPlugin]
-    });
-}
+            plugins: {
+              title: { display: true, text: "Metode: " + title },
+              legend: { display: true, position: "top" },
+              tooltip: {
+                callbacks: {
+                  label: function (context) {
+                    let label = context.dataset.label || "";
+                    if (label) {
+                      label += ": ";
+                    }
+                    if (context.parsed.y !== null) {
+                      // Tampilkan 9 desimal sesuai kalkulator
+                      label += new Decimal(context.parsed.y).toFixed(9);
+                    }
+                    return label;
+                  },
+                },
+              },
+            },
+          },
+          plugins: [whiteBackgroundPlugin],
+        });
+      }
 
-// 1. BISEKSI (Pass 'c')
-function runBiseksi(aIn, bIn) {
-    let a = new Decimal(aIn), b = new Decimal(bIn);
-    let labels = [], errData = [], rootData = [], fcData = [];
-    for(let i=1; i<=30; i++) {
-        let c = a.plus(b).div(2);
-        let fc = f(c);
-        let err = b.minus(a).abs();
-        labels.push(i); errData.push(err.toNumber()); rootData.push(c.toNumber()); fcData.push(fc.abs().toNumber());
-        if(fc.abs().lt(1e-8) || err.lt(1e-8)) break;
-        if(f(a).times(fc).lt(0)) b = c; else a = c;
-    }
-    document.getElementById('infoBis').innerText = `Selesai dalam ${labels.length} iterasi.`;
-    renderChart('chartBis', 'Biseksi', labels, errData, rootData, fcData, 'c');
-}
+      function downloadChart(canvasId, filename) {
+        const canvas = document.getElementById(canvasId);
+        if (!charts[canvasId]) {
+          alert("Silakan klik tombol GENERATE terlebih dahulu.");
+          return;
+        }
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = canvas.toDataURL("image/png", 1.0);
+        link.click();
+      }
 
-// 2. REGULA FALSI (Pass 'c')
-function runRegulaFalsi(aIn, bIn) {
-    let a = new Decimal(aIn), b = new Decimal(bIn);
-    let labels = [], errData = [], rootData = [], fcData = [];
-    let fa = f(a), fb = f(b);
-    for(let i=1; i<=30; i++) {
-        let num = fb.times(a.minus(b));
-        let den = fa.minus(fb);
-        let c = b.minus(num.div(den));
-        let fc = f(c);
-        labels.push(i); fcData.push(fc.abs().toNumber()); errData.push(null); rootData.push(c.toNumber());
-        if(fc.abs().lt(1e-8)) break;
-        if(fa.times(fc).lt(0)) { b = c; fb = fc; } else { a = c; fa = fc; }
-    }
-    document.getElementById('infoRF').innerText = `Selesai dalam ${labels.length} iterasi.`;
-    renderChart('chartRF', 'Regula Falsi', labels, fcData, rootData, fcData, 'c');
-}
-
-// 3. SECANT (Pass 'c')
-function runSecant(aIn, bIn) {
-    let x0 = new Decimal(aIn), x1 = new Decimal(bIn);
-    let labels = [], errData = [], rootData = [], fcData = [];
-    for(let i=1; i<=20; i++) {
-        let fx0 = f(x0), fx1 = f(x1);
-        if(fx1.minus(fx0).eq(0)) break;
-        let x2 = x1.minus(fx1.times(x1.minus(x0)).div(fx1.minus(fx0)));
-        labels.push(i); errData.push(x2.minus(x1).abs().toNumber()); rootData.push(x2.toNumber()); fcData.push(f(x2).abs().toNumber());
-        if(f(x2).abs().lt(1e-8)) break;
-        x0 = x1; x1 = x2;
-    }
-    document.getElementById('infoSec').innerText = `Selesai dalam ${labels.length} iterasi.`;
-    renderChart('chartSec', 'Secant', labels, errData, rootData, fcData, 'c');
-}
-
-// 4. NEWTON RAPHSON (Pass 'b')
-function runNewton(aIn) {
-    let x = new Decimal(aIn);
-    let labels = [], errData = [], rootData = [], fcData = [];
-    for(let i=1; i<=20; i++) {
-        let fx = f(x), fpx = fPrime(x);
-        if(fpx.eq(0)) break;
-        let diff = fx.div(fpx);
-        let x_new = x.minus(diff);
-        // x_new disini adalah b
-        labels.push(i); errData.push(diff.abs().toNumber()); rootData.push(x_new.toNumber()); fcData.push(f(x_new).abs().toNumber());
-        if(fx.abs().lt(1e-8)) break;
-        x = x_new;
-    }
-    document.getElementById('infoNR').innerText = `Selesai dalam ${labels.length} iterasi.`;
-    
-    // Pass 'b' sebagai simbol
-    renderChart('chartNR', 'Newton Raphson', labels, errData, rootData, fcData, 'b');
-}
-
-window.onload = generateAllGraphs;
-</script>
-
-</body>
+      window.onload = generateAllGraphs;
+    </script>
+  </body>
 </html>
